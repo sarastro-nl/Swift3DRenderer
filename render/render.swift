@@ -49,9 +49,9 @@ func updateCamera(_ input: inout Input) {
         changed = true
         let z = (State.mouseX - input.mouseX) * State.cameraAxis.x + (State.mouseY - input.mouseY) * State.cameraAxis.y + (100 / Config.rotationSpeed) * State.cameraAxis.z
         let nz = normalize(z)
-        let m = simd_float3x3.rotationMatrix(State.cameraAxis.z, nz)
-        State.cameraAxis.x = normalize(simd_mul(m, State.cameraAxis.x))
-        State.cameraAxis.y = normalize(simd_mul(m, State.cameraAxis.y))
+        let q = simd_quatf(from: State.cameraAxis.z, to: nz)
+        State.cameraAxis.x = normalize(simd_act(q, State.cameraAxis.x))
+        State.cameraAxis.y = normalize(simd_act(q, State.cameraAxis.y))
         State.cameraAxis.z = nz
         State.mouseX = input.mouseX
         State.mouseY = input.mouseY

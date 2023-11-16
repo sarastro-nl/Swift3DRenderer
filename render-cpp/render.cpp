@@ -37,18 +37,6 @@ typedef struct {
 
 #define RGB(r, g, b) ((256 * (uint32_t)(r) + (uint32_t)(g)) * 256 + (uint32_t)(b))
 
-namespace simd {
-simd_float3x3 rotationMatrix3x3(simd_float3 *a, simd_float3 *b) {
-    simd_float3 n = simd_normalize(simd_cross(*a, *b));
-    float c = simd_dot(*a, *b);
-    float s = sqrt(std::fmax(0, 1 - c * c));
-    float ci = 1 - c;
-    return simd_matrix(simd_make_float3(c + n.x * n.x * ci, n.y * n.x * ci + n.z * s, n.z * n.x * ci - n.y * s),
-                       simd_make_float3(n.x * n.y * ci - n.z * s, c + n.y * n.y * ci, n.z * n.y * ci + n.x * s),
-                       simd_make_float3(n.x * n.z * ci + n.y * s, n.y * n.z * ci - n.x * s, c + n.z * n.z * ci));
-}
-}
-
 state_t state = {
     .camera_position = simd_make_float3(0, 0, 0),
     .camera_axis = { .x = simd_make_float3(1, 0, 0), .y = simd_make_float3(0, 1, 0), .z = simd_make_float3(0, 0, 1)},
@@ -91,9 +79,9 @@ void update_camera(const Input *input) {
         changed = true;
         simd_float3 z = (state.mouseX - input->mouseX) * state.camera_axis.x + (state.mouseY - input->mouseY) * state.camera_axis.y + (100 / config.rotation_speed) * state.camera_axis.z;
         simd_float3 nz = simd_normalize(z);
-        simd_float3x3 m = simd::rotationMatrix3x3(&state.camera_axis.z, &nz);
-        state.camera_axis.x = simd_normalize(simd_mul(m, state.camera_axis.x));
-        state.camera_axis.y = simd_normalize(simd_mul(m, state.camera_axis.y));
+        simd_quatf q = simd_quaternion(state.camera_axis.z, nz);
+        state.camera_axis.x = simd_normalize(simd_act(q, state.camera_axis.x));
+        state.camera_axis.y = simd_normalize(simd_act(q, state.camera_axis.y));
         state.camera_axis.z = nz;
         state.mouseX = input->mouseX;
         state.mouseY = input->mouseY;

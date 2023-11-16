@@ -25,18 +25,6 @@ extension simd_float3 {
     }
 }
 
-extension simd_float3x3 {
-    static func rotationMatrix(_ a: simd_float3, _ b: simd_float3) -> Self {
-        let n = normalize(cross(a, b))
-        let c = dot(a, b)
-        let s = sqrt(max(0, 1 - c * c))
-        let ci = 1 - c
-        return simd_float3x3(simd_float3(c + n.x * n.x * ci, n.y * n.x * ci + n.z * s, n.z * n.x * ci - n.y * s),
-                             simd_float3(n.x * n.y * ci - n.z * s, c + n.y * n.y * ci, n.z * n.y * ci + n.x * s),
-                             simd_float3(n.x * n.z * ci + n.y * s, n.y * n.z * ci - n.x * s, c + n.z * n.z * ci))
-    }
-}
-
 extension simd_float4x4: CustomStringConvertible {
     public var description: String {
         let m = self

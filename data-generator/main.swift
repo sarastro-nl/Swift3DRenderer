@@ -21,6 +21,10 @@ extension NSColor {
 
 let orange = NSColor.orange.simd_color
 let red = NSColor.red.simd_color
+let blue = NSColor.blue.simd_color
+
+func normal(_ v: [simd_float3], _ a: Int, _ b: Int, _ c: Int) -> simd_float3 { normalize(cross(v[c] - v[a], v[b] - v[a])) }
+
 func addTetrahedron() {
     let (x, y, z) = simd_float3.randomUnitAxis
     let k1: Float = sqrt(8/9)
@@ -55,15 +59,13 @@ func addTetrahedron() {
         VertexAttribute(n: normal(v, 0, 3, 2), c: orange),
         VertexAttribute(n: normal(v, 0, 1, 3), c: orange),
         VertexAttribute(n: normal(v, 0, 1, 3), c: orange),
-        VertexAttribute(n: normal(v, 0, 1, 3), c: orange),
+        VertexAttribute(n: normal(v, 0, 1, 3), c: blue),
         VertexAttribute(n: normal(v, 1, 2, 3), c: orange),
         VertexAttribute(n: normal(v, 1, 2, 3), c: orange),
         VertexAttribute(n: normal(v, 1, 2, 3), c: orange),
     ])
     attributeIndexes.append(contentsOf: (j..<(j + 12)))
 }
-
-func normal(_ v: [simd_float3], _ a: Int, _ b: Int, _ c: Int) -> simd_float3 { normalize(cross(v[c] - v[a], v[b] - v[a])) }
 
 func addIcosahedron() {
     let (x, y, z) = simd_float3.randomUnitAxis
