@@ -54,17 +54,17 @@ func main() {
     var lastTime = CACurrentMediaTime()
     var loopNr = 0
     let timeInterval = 1.0
-    
+    var debug = false
+    var totalTime = 0.0
+
     var isRunning = true
-    var logEnabled = false
-    var mark = 0.0
+    let frameTarget = 1 / 60.0
+    var counter = 0.0
     
     var mouseX: Float = 0
     var mouseY: Float = 0
     var cursorHidden = false
 
-    let semaphore = DispatchSemaphore(value: 1)
-    
     var currentBufferIndex = 0
     var pixelBufferMemory: UnsafeMutablePointer<UInt32> = .allocate(capacity: 0)
     var pixelData = PixelData(pixelBuffer: pixelBufferMemory, width: 0, height: 0, bytesPerPixel: 4, bufferSize: 0)
@@ -82,14 +82,10 @@ func main() {
     }
     NotificationCenter.default.post(name: NSWindow.didResizeNotification, object: nil)
     
-    while (isRunning) {
+    while isRunning {
         autoreleasepool {
-            if CACurrentMediaTime() > lastTime + timeInterval {
-                lastTime = CACurrentMediaTime()
-                print("# loops: \(loopNr)")
-                loopNr = 0
-                logEnabled = true
-            }
+            if CACurrentMediaTime() > lastTime + timeInterval { lastTime = CACurrentMediaTime(); debug = true }
+            
             while let event = app.nextEvent(matching: .any, until: nil, inMode: .default, dequeue: true) {
                 switch event.type {
                     case .keyUp, .keyDown:
@@ -126,16 +122,24 @@ func main() {
                 }
             }
             pixelData.pixelBuffer = pixelBufferMemory + currentBufferIndex * Int(pixelData.width * pixelData.height)
-            mark = CACurrentMediaTime()
+            let mark = CACurrentMediaTime()
             updateAndRender(&pixelData, &input)
-            if logEnabled { print(String(format: "%.5f%%", 6000 * (CACurrentMediaTime() - mark))) }
+            totalTime += CACurrentMediaTime() - mark
+            if debug { print(String(format: "%.2f%%", 6000 * totalTime / Double(loopNr))) }
             
             let ciImage = CIImage(bitmapData: Data(bytesNoCopy: pixelData.pixelBuffer, count: Int(pixelData.bufferSize), deallocator: .none),
                                   bytesPerRow: Int(pixelData.bytesPerPixel * pixelData.width),
                                   size: frameSize,
                                   format: .BGRA8,
                                   colorSpace: colorSpace)
-            semaphore.wait()
+
+            var sleepSeconds = min(0.001, frameTarget - (CACurrentMediaTime() - counter))
+            while sleepSeconds > 0 {
+                Thread.sleep(forTimeInterval: sleepSeconds)
+                sleepSeconds = min(0.001, frameTarget - (CACurrentMediaTime() - counter))
+            }
+            counter = CACurrentMediaTime()
+
             guard let currentDrawable = metalLayer.nextDrawable(),
                   let commandBuffer = commandQueue.makeCommandBuffer() else { return }
             ciContext.render(ciImage,
@@ -145,12 +149,17 @@ func main() {
                              colorSpace: colorSpace)
             
             commandBuffer.present(currentDrawable)
-            commandBuffer.addCompletedHandler {_ in semaphore.signal() }
             commandBuffer.commit()
             
-            loopNr += 1
-            logEnabled = false
             currentBufferIndex = (currentBufferIndex + 1) % 2
+            
+            loopNr += 1
+            if debug {
+                debug = false
+                print("# loops: \(loopNr)")
+                totalTime = 0
+                loopNr = 0
+            }
         }
     }
 }

@@ -35,7 +35,7 @@ typedef struct {
     simd_float3 color;
 } attribute_t;
 
-#define RGB(r, g, b) ((256 * (uint32_t)(r) + (uint32_t)(g)) * 256 + (uint32_t)(b))
+#define RGB(r, g, b) (((((uint8_t)(r) << 8) + (uint8_t)(g)) << 8) + (uint8_t)(b))
 
 state_t state = {
     .camera_position = simd_make_float3(0, 0, 0),
@@ -95,7 +95,8 @@ void update_camera(const Input *input) {
 }
 
 void updateAndRender(const PixelData *pixel_data, const Input *input) {
-    memset_pattern4((void *)pixel_data->pixelBuffer, &config.background_color, pixel_data->bufferSize);
+    update_camera(input);
+    
     int32_t depth_buffer_size = pixel_data->width * pixel_data->height * sizeof(float);
     if (depth_buffer.buffer_size != depth_buffer_size) {
         depth_buffer.buffer_size = depth_buffer_size;
@@ -104,9 +105,8 @@ void updateAndRender(const PixelData *pixel_data, const Input *input) {
     }
     float infinity = HUGE_VALF;
     memset_pattern4(depth_buffer.buffer, &infinity, depth_buffer.buffer_size);
-    
-    update_camera(input);
-    
+    memset_pattern4(pixel_data->pixelBuffer, &config.background_color, pixel_data->bufferSize);
+
     float width = (float)pixel_data->width;
     float height = (float)pixel_data->height;
     for (int i = 0; i < world_vertices_count; i++) {
@@ -128,7 +128,7 @@ void updateAndRender(const PixelData *pixel_data, const Input *input) {
         simd_float3 rv3 = raster_vertices[vi3];
         simd_float3 rvmin = simd_min(simd_min(rv1, rv2), rv3);
         simd_float3 rvmax = simd_max(simd_max(rv1, rv2), rv3);
-        if (rvmin.x >= width || rvmin.y >= height || rvmax.x < 0 || rvmax.y < 0 || rvmin.z < config.near) { continue; }
+        if (rvmin.x > width || rvmin.y > height || rvmax.x < 0 || rvmax.y < 0 || rvmin.z < config.near) { continue; }
         
         float area = edge_function(&rv1, &rv2, &rv3);
         int32_t ai1 = world_attribute_indexes[i * 3];
@@ -152,19 +152,17 @@ void updateAndRender(const PixelData *pixel_data, const Input *input) {
                 simd_float3 w = simd_make_float3(edge_function(&rv2, &rv3, &p), edge_function(&rv3, &rv1, &p), edge_function(&rv1, &rv2, &p));
                 if (w.x >= 0 && w.y >= 0 && w.z >= 0) {
                     w /= area;
-                    int32_t xpart = x + ypart;
                     float z = 1 / simd_dot(rvz, w);
+                    int32_t xpart = x + ypart;
                     if (z < depth_buffer.buffer[xpart]) {
                         depth_buffer.buffer[xpart] = z;
-                        attribute_t att = {
-                            .point = z * (preMul1.point * w[0] + preMul2.point * w[1] + preMul3.point * w[2]),
-                            .normal = z * (preMul1.normal * w[0] + preMul2.normal * w[1] + preMul3.normal * w[2]),
-                            .color = z * (preMul1.color * w[0] + preMul2.color * w[1] + preMul3.color * w[2])
-                        };
-                        simd_float3 pv = -simd_normalize(att.point);
-                        simd_float3 n = simd_normalize(att.normal);
-                        float dot = sqrt(simd_dot(pv, n));
-                        pixel_data->pixelBuffer[xpart] = RGB(dot * att.color[0], dot * att.color[1], dot * att.color[2]);
+                        simd_float3 point = z * (preMul1.point * w[0] + preMul2.point * w[1] + preMul3.point * w[2]);
+                        simd_float3 normal = z * (preMul1.normal * w[0] + preMul2.normal * w[1] + preMul3.normal * w[2]);
+                        simd_float3 color = z * (preMul1.color * w[0] + preMul2.color * w[1] + preMul3.color * w[2]);
+                        simd_float3 p = -simd_normalize(point);
+                        simd_float3 n = simd_normalize(normal);
+                        float dot = simd_dot(p, n);
+                        pixel_data->pixelBuffer[xpart] = RGB(dot * color[0], dot * color[1], dot * color[2]);
                     }
                 }
             }

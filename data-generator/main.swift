@@ -72,7 +72,7 @@ func addIcosahedron() {
     let phi: Float = (sqrt(5) + 1) / 2
     let l: Float = 1 / sqrt(phi + 2)
     let k: Float = phi * l
-    var pa: [simd_float3] = [
+    var v: [simd_float3] = [
          k * x + l * y,
          k * x - l * y,
         -k * x + l * y,
@@ -86,12 +86,14 @@ func addIcosahedron() {
         -k * y + l * z,
         -k * y - l * z,
     ]
-    let r = Float.random(in: 1...10)
-    let p = simd_float3.randomPoint
-    pa = pa.map { r * $0 + p }
+    //    let r = Float.random(in: 1...10)
+    //    let p = simd_float3.randomPoint
+    let r: Float = 2.0
+    let p = simd_float3(0, 0, -10)
+    v = v.map { r * $0 + p }
     
     let i = vertices.count
-    vertices.append(contentsOf: pa)
+    vertices.append(contentsOf: v)
     vertexIndexes.append(contentsOf: [
         i,    i+1,  i+4,
         i+4,  i+8,  i,
@@ -114,9 +116,74 @@ func addIcosahedron() {
         i+7,  i+2,  i+3,
         i+3,  i+2,  i+5,
     ])
+    let j = attributes.count
+    attributes.append(contentsOf: [
+        VertexAttribute(n: normal(v, 0, 1, 4), c: orange),
+        VertexAttribute(n: normal(v, 0, 1, 4), c: orange),
+        VertexAttribute(n: normal(v, 0, 1, 4), c: orange),
+        VertexAttribute(n: normal(v, 4, 8, 0), c: orange),
+        VertexAttribute(n: normal(v, 4, 8, 0), c: orange),
+        VertexAttribute(n: normal(v, 4, 8, 0), c: orange),
+        VertexAttribute(n: normal(v, 0, 8, 9), c: orange),
+        VertexAttribute(n: normal(v, 0, 8, 9), c: orange),
+        VertexAttribute(n: normal(v, 0, 8, 9), c: orange),
+        VertexAttribute(n: normal(v, 9, 6, 0), c: red),
+        VertexAttribute(n: normal(v, 9, 6, 0), c: orange),
+        VertexAttribute(n: normal(v, 9, 6, 0), c: orange),
+        VertexAttribute(n: normal(v, 0, 6, 1), c: orange),
+        VertexAttribute(n: normal(v, 0, 6, 1), c: orange),
+        VertexAttribute(n: normal(v, 0, 6, 1), c: orange),
+        VertexAttribute(n: normal(v, 1, 10, 4), c: orange),
+        VertexAttribute(n: normal(v, 1, 10, 4), c: orange),
+        VertexAttribute(n: normal(v, 1, 10, 4), c: orange),
+        VertexAttribute(n: normal(v, 4, 10, 5), c: orange),
+        VertexAttribute(n: normal(v, 4, 10, 5), c: orange),
+        VertexAttribute(n: normal(v, 4, 10, 5), c: orange),
+        VertexAttribute(n: normal(v, 5, 8, 4), c: orange),
+        VertexAttribute(n: normal(v, 5, 8, 4), c: orange),
+        VertexAttribute(n: normal(v, 5, 8, 4), c: orange),
+        VertexAttribute(n: normal(v, 5, 2, 8), c: blue),
+        VertexAttribute(n: normal(v, 5, 2, 8), c: orange),
+        VertexAttribute(n: normal(v, 5, 2, 8), c: red),
+        VertexAttribute(n: normal(v, 8, 2, 9), c: orange),
+        VertexAttribute(n: normal(v, 8, 2, 9), c: orange),
+        VertexAttribute(n: normal(v, 8, 2, 9), c: orange),
+        VertexAttribute(n: normal(v, 9, 2, 7), c: orange),
+        VertexAttribute(n: normal(v, 9, 2, 7), c: orange),
+        VertexAttribute(n: normal(v, 9, 2, 7), c: orange),
+        VertexAttribute(n: normal(v, 7, 6, 9), c: orange),
+        VertexAttribute(n: normal(v, 7, 6, 9), c: orange),
+        VertexAttribute(n: normal(v, 7, 6, 9), c: orange),
+        VertexAttribute(n: normal(v, 7, 11, 6), c: orange),
+        VertexAttribute(n: normal(v, 7, 11, 6), c: orange),
+        VertexAttribute(n: normal(v, 7, 11, 6), c: orange),
+        VertexAttribute(n: normal(v, 6, 11, 1), c: orange),
+        VertexAttribute(n: normal(v, 6, 11, 1), c: orange),
+        VertexAttribute(n: normal(v, 6, 11, 1), c: orange),
+        VertexAttribute(n: normal(v, 1, 11, 10), c: orange),
+        VertexAttribute(n: normal(v, 1, 11, 10), c: orange),
+        VertexAttribute(n: normal(v, 1, 11, 10), c: orange),
+        VertexAttribute(n: normal(v, 3, 5, 10), c: red),
+        VertexAttribute(n: normal(v, 3, 5, 10), c: orange),
+        VertexAttribute(n: normal(v, 3, 5, 10), c: orange),
+        VertexAttribute(n: normal(v, 10, 11, 3), c: orange),
+        VertexAttribute(n: normal(v, 10, 11, 3), c: orange),
+        VertexAttribute(n: normal(v, 10, 11, 3), c: orange),
+        VertexAttribute(n: normal(v, 3, 11, 7), c: orange),
+        VertexAttribute(n: normal(v, 3, 11, 7), c: orange),
+        VertexAttribute(n: normal(v, 3, 11, 7), c: orange),
+        VertexAttribute(n: normal(v, 7, 2, 3), c: orange),
+        VertexAttribute(n: normal(v, 7, 2, 3), c: orange),
+        VertexAttribute(n: normal(v, 7, 2, 3), c: orange),
+        VertexAttribute(n: normal(v, 3, 2, 5), c: orange),
+        VertexAttribute(n: normal(v, 3, 2, 5), c: orange),
+        VertexAttribute(n: normal(v, 3, 2, 5), c: orange),
+    ])
+    attributeIndexes.append(contentsOf: (j..<(j + 60)))
 }
 
-for _ in (0..<2) { addTetrahedron() }
+//for _ in (0..<2) { addTetrahedron() }
+for _ in (0..<1) { addIcosahedron() }
 
 let directory = String(#file.prefix(upTo: #file.lastIndex(of: "/")!))
 let swiftPath = directory + "/data.swift"

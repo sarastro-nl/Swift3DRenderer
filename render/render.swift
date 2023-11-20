@@ -35,7 +35,7 @@ func RGB(_ r: Float, _ g: Float, _ b: Float) -> UInt32 {
     return (256 * UInt32(r) + UInt32(g)) * 256 + UInt32(b)
 }
 
-func edgeFunction(_ v1: simd_float3, _ v2: simd_float3, _ v3: simd_float3) -> Float {
+func edgeFunction(_ v1: inout simd_float3, _ v2: inout simd_float3, _ v3: inout simd_float3) -> Float {
     (v3.x - v1.x) * (v1.y - v2.y) + (v3.y - v1.y) * (v2.x - v1.x)
 }
 
@@ -91,12 +91,12 @@ func updateAndRender(_ pixelData: inout PixelData, _ input: inout Input) {
     }
     for i in stride(from: 0, to: worldVertexIndexes.count, by: 3) {
         let (vi1, vi2, vi3) = (worldVertexIndexes[i], worldVertexIndexes[i + 1], worldVertexIndexes[i + 2])
-        let (rv1, rv2, rv3) = (rasterVertices[vi1], rasterVertices[vi2], rasterVertices[vi3])
+        var (rv1, rv2, rv3) = (rasterVertices[vi1], rasterVertices[vi2], rasterVertices[vi3])
         let rvmin = simd_min(simd_min(rv1, rv2), rv3)
         let rvmax = simd_max(simd_max(rv1, rv2), rv3)
         if rvmin.x >= width || rvmin.y >= height || rvmax.x < 0 || rvmax.y < 0 || rvmin.z < Config.near { continue }
 
-        let area = edgeFunction(rv1, rv2, rv3)
+        let area = edgeFunction(&rv1, &rv2, &rv3)
         let (ai1, ai2, ai3) = (worldAttributeIndexes[i], worldAttributeIndexes[i + 1], worldAttributeIndexes[i + 2])
         let (a1, a2, a3) = (attributes[ai1], attributes[ai2], attributes[ai3])
         let rvz = 1 / simd_float3(rv1.z, rv2.z, rv3.z)
@@ -110,21 +110,21 @@ func updateAndRender(_ pixelData: inout PixelData, _ input: inout Input) {
         for y in (ymin...ymax) {
             let ypart = y * Int(pixelData.width)
             for x in (xmin...xmax) {
-                let p = simd_float3(Float(x) + 0.5, Float(y) + 0.5, 0)
-                var w = simd_float3(edgeFunction(rv2, rv3, p), edgeFunction(rv3, rv1, p), edgeFunction(rv1, rv2, p))
+                var p = simd_float3(Float(x) + 0.5, Float(y) + 0.5, 0)
+                var w = simd_float3(edgeFunction(&rv2, &rv3, &p), edgeFunction(&rv3, &rv1, &p), edgeFunction(&rv1, &rv2, &p))
                 if w >= .zero {
                     w /= area
                     let xpart = x + ypart
                     let z = 1 / dot(rvz, w)
                     if z < DepthBuffer.buffer[xpart] {
                         DepthBuffer.buffer[xpart] = z
-                        let att = Attribute(point: z * (preMul1.point * w[0] + preMul2.point * w[1] + preMul3.point * w[2]),
-                                            normal: z * (preMul1.normal * w[0] + preMul2.normal * w[1] + preMul3.normal * w[2]),
-                                            color: z * (preMul1.color * w[0] + preMul2.color * w[1] + preMul3.color * w[2]))
-                        let pv = -normalize(att.point)
-                        let n = normalize(att.normal)
-                        let dot = sqrt(dot(pv, n))
-                        pixelData.pixelBuffer[xpart] = RGB(dot * att.color[0], dot * att.color[1], dot * att.color[2])
+                        let point = z * (preMul1.point * w[0] + preMul2.point * w[1] + preMul3.point * w[2])
+                        let normal = z * (preMul1.normal * w[0] + preMul2.normal * w[1] + preMul3.normal * w[2])
+                        let color = z * (preMul1.color * w[0] + preMul2.color * w[1] + preMul3.color * w[2])
+                        let p = -normalize(point)
+                        let n = normalize(normal)
+                        let dot = dot(p, n)
+                        pixelData.pixelBuffer[xpart] = RGB(dot * color[0], dot * color[1], dot * color[2])
                     }
                 }
             }
