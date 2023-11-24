@@ -87,15 +87,15 @@ func updateAndRender(_ pixelData: inout PixelData, _ input: inout Input) {
     let attributes = worldAttributes.map {
         Attribute(point: .zero, normal: simd_make_float3(simd_mul(State.cameraMatrix, $0.normal)), color: $0.color)
     }
-    for i in stride(from: 0, to: worldVertexIndexes.count, by: 3) {
-        let (vi1, vi2, vi3) = (worldVertexIndexes[i], worldVertexIndexes[i + 1], worldVertexIndexes[i + 2])
+    for i in stride(from: 0, to: vertexIndexes.count, by: 3) {
+        let (vi1, vi2, vi3) = (vertexIndexes[i], vertexIndexes[i + 1], vertexIndexes[i + 2])
         var (rv1, rv2, rv3) = (rasterVertices[vi1], rasterVertices[vi2], rasterVertices[vi3])
         let rvmin = simd_min(simd_min(rv1, rv2), rv3)
         let rvmax = simd_max(simd_max(rv1, rv2), rv3)
         if rvmin.x >= width || rvmin.y >= height || rvmax.x < 0 || rvmax.y < 0 || rvmin.z < Config.near { continue }
         
         let area = edgeFunction(&rv1, &rv2, &rv3)
-        let (ai1, ai2, ai3) = (worldAttributeIndexes[i], worldAttributeIndexes[i + 1], worldAttributeIndexes[i + 2])
+        let (ai1, ai2, ai3) = (attributeIndexes[i], attributeIndexes[i + 1], attributeIndexes[i + 2])
         let (a1, a2, a3) = (attributes[ai1], attributes[ai2], attributes[ai3])
         let rvz = 1 / simd_float3(rv1.z, rv2.z, rv3.z)
         let (preMul1, preMul2, preMul3) = (Attribute(point: cameraVertices[vi1] * rvz[0], normal: a1.normal * rvz[0], color: a1.color * rvz[0]),

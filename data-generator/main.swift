@@ -196,6 +196,7 @@ if !FileManager.default.fileExists(atPath: hppPath) {
 }
 
 var s = """
+// this file is generated
 import simd
 struct VertexAttribute {
 let normal: simd_float4
@@ -209,7 +210,7 @@ for v in vertices {
 }
 s += """
 ]
-let worldVertexIndexes = [
+let vertexIndexes = [
 
 """
 for i in stride(from: 0, to: vertexIndexes.count, by: 3) {
@@ -225,7 +226,7 @@ for a in attributes {
 }
 s += """
 ]
-let worldAttributeIndexes = [
+let attributeIndexes = [
 
 """
 for i in stride(from: 0, to: attributeIndexes.count, by: 3) {
@@ -238,6 +239,7 @@ s += """
 try s.write(toFile: swiftPath, atomically: true, encoding: .utf8)
 
 s = """
+// this file is generated
 #include <simd/simd.h>
 typedef struct {
 simd_float4 normal;
@@ -254,7 +256,7 @@ for v in vertices {
 }
 s += """
 };
-int32_t world_vertex_indexes[\(vertexIndexes.count)] = {
+int32_t vertex_indexes[\(vertexIndexes.count)] = {
 
 """
 for i in stride(from: 0, to: vertexIndexes.count, by: 3) {
@@ -270,7 +272,7 @@ for a in attributes {
 }
 s += """
 };
-int32_t world_attribute_indexes[\(attributeIndexes.count)] = {
+int32_t attribute_indexes[\(attributeIndexes.count)] = {
 
 """
 for i in stride(from: 0, to: attributeIndexes.count, by: 3) {

@@ -124,7 +124,6 @@ class ViewController: PlatformController {
         let mark = CACurrentMediaTime()
         updateAndRender(&pixelData, &input)
         totalTime += CACurrentMediaTime() - mark
-        if debug { print(String(format: "%.2f%%", 6000 * totalTime / Double(loopNr))) }
 
         let ciImage = CIImage(bitmapData: Data(bytesNoCopy: pixelData.pixelBuffer, count: Int(pixelData.bufferSize), deallocator: .none),
                           bytesPerRow: Int(pixelData.bytesPerPixel * pixelData.width),
@@ -148,6 +147,7 @@ class ViewController: PlatformController {
         if debug {
             debug = false
             print("# loops: \(loopNr)")
+            print(String(format: "%.2f%%", 100 * totalTime / (frameTarget * Double(loopNr))))
             totalTime = 0
             loopNr = 0
         }

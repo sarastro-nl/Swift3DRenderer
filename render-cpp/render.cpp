@@ -115,13 +115,12 @@ void updateAndRender(const PixelData *pixel_data, const Input *input) {
     }
     for (int i = 0; i < world_attributes_count; i++) {
         vertex_attribute_t a = world_attributes[i];
-        simd_float4 n = simd_mul(state.camera_matrix, a.normal);
-        attributes[i] = { .point = simd_make_float3(0, 0, 0), .normal = n.xyz, .color = a.color };
+         attributes[i] = { .point = simd_make_float3(0, 0, 0), .normal = simd_mul(state.camera_matrix, a.normal).xyz, .color = a.color };
     }
     for (int i = 0; i < world_triangles_count; i++) {
-        int32_t vi1 = world_vertex_indexes[i * 3];
-        int32_t vi2 = world_vertex_indexes[i * 3 + 1];
-        int32_t vi3 = world_vertex_indexes[i * 3 + 2];
+        int32_t vi1 = vertex_indexes[i * 3];
+        int32_t vi2 = vertex_indexes[i * 3 + 1];
+        int32_t vi3 = vertex_indexes[i * 3 + 2];
         simd_float3 rv1 = raster_vertices[vi1];
         simd_float3 rv2 = raster_vertices[vi2];
         simd_float3 rv3 = raster_vertices[vi3];
@@ -130,9 +129,9 @@ void updateAndRender(const PixelData *pixel_data, const Input *input) {
         if (rvmin.x > width || rvmin.y > height || rvmax.x < 0 || rvmax.y < 0 || rvmin.z < config.near) { continue; }
         
         float area = edge_function(&rv1, &rv2, &rv3);
-        int32_t ai1 = world_attribute_indexes[i * 3];
-        int32_t ai2 = world_attribute_indexes[i * 3 + 1];
-        int32_t ai3 = world_attribute_indexes[i * 3 + 2];
+        int32_t ai1 = attribute_indexes[i * 3];
+        int32_t ai2 = attribute_indexes[i * 3 + 1];
+        int32_t ai3 = attribute_indexes[i * 3 + 2];
         attribute_t a1 = attributes[ai1];
         attribute_t a2 = attributes[ai2];
         attribute_t a3 = attributes[ai3];
