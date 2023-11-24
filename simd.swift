@@ -2,9 +2,9 @@ import simd
 
 extension simd_float3 {
     static func >= (lhs: simd_float3, rhs: simd_float3) -> Bool { lhs.x >= rhs.x && lhs.y >= rhs.y && lhs.z >= rhs.z }
-
+    
     static var randomPoint: simd_float3 { simd_float3(Float.random(in: -100...100), Float.random(in: -100...100), Float.random(in: -100...100)) }
-
+    
     static var randomUnitSpherePoint: simd_float3 {
         let cz = Float.random(in: -1...1)
         let angle = Float.random(in: 0..<2*Float.pi)

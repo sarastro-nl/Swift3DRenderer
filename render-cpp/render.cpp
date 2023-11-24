@@ -10,8 +10,7 @@ typedef struct {
     simd_float3 camera_position;
     struct { simd_float3 x; simd_float3 y; simd_float3 z; } camera_axis;
     simd_float4x4 camera_matrix;
-    float mouseX;
-    float mouseY;
+    simd_float2 mouse;
 } state_t;
 
 typedef struct {
@@ -41,8 +40,7 @@ state_t state = {
     .camera_position = simd_make_float3(0, 0, 0),
     .camera_axis = { .x = simd_make_float3(1, 0, 0), .y = simd_make_float3(0, 1, 0), .z = simd_make_float3(0, 0, 1)},
     .camera_matrix = matrix_identity_float4x4,
-    .mouseX = 0,
-    .mouseY = 0,
+    .mouse = simd_make_float2(0, 0),
 };
 
 depth_buffer_t depth_buffer = {
@@ -57,7 +55,7 @@ config_t config = {
     .factor = 1,
     .speed = 0.1,
     .rotation_speed = 0.1,
-    .background_color = RGB(50, 50, 50),
+    .background_color = RGB(30, 30, 30),
 };
 
 simd_float3 camera_vertices[world_vertices_count];
@@ -75,16 +73,16 @@ void update_camera(const Input *input) {
         changed = true;
         state.camera_position += config.speed * ((input->right - input->left) * state.camera_axis.x + (input->down - input->up) * state.camera_axis.z);
     }
-    if (input->mouseX != state.mouseX || input->mouseY != state.mouseY) {
+    if (input->mouse.x != state.mouse.x || input->mouse.y != state.mouse.y) {
         changed = true;
-        simd_float3 z = (state.mouseX - input->mouseX) * state.camera_axis.x + (state.mouseY - input->mouseY) * state.camera_axis.y + (100 / config.rotation_speed) * state.camera_axis.z;
+        simd_float3 z = (state.mouse.x - input->mouse.x) * state.camera_axis.x + (state.mouse.y - input->mouse.y) * state.camera_axis.y + (100 / config.rotation_speed) * state.camera_axis.z;
         simd_float3 nz = simd_normalize(z);
         simd_quatf q = simd_quaternion(state.camera_axis.z, nz);
         state.camera_axis.x = simd_normalize(simd_act(q, state.camera_axis.x));
         state.camera_axis.y = simd_normalize(simd_act(q, state.camera_axis.y));
         state.camera_axis.z = nz;
-        state.mouseX = input->mouseX;
-        state.mouseY = input->mouseY;
+        state.mouse.x = input->mouse.x;
+        state.mouse.y = input->mouse.y;
     }
     if (changed) {
         state.camera_matrix = simd_inverse(simd_matrix(simd_make_float4(state.camera_axis.x, 0),
@@ -94,6 +92,7 @@ void update_camera(const Input *input) {
     }
 }
 
+__attribute__((visibility("default")))
 void updateAndRender(const PixelData *pixel_data, const Input *input) {
     update_camera(input);
     

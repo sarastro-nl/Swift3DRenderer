@@ -31,15 +31,15 @@ func addTetrahedron() {
     let k2: Float = sqrt(2/9)
     let k3: Float = sqrt(2/3)
     var v: [simd_float3] = [
-         z,
-         k1 * x          - z / 3,
+        z,
+        k1 * x          - z / 3,
         -k2 * x + k3 * y - z / 3,
         -k2 * x - k3 * y - z / 3,
     ]
-//    let r = Float.random(in: 1...10)
-//    let p = simd_float3.randomPoint
+    //    let r = Float.random(in: 1...10)
+    //    let p = simd_float3.randomPoint
     let r: Float = 2.0
-    let p = simd_float3(0, 0, -10)
+    let p = simd_float3(0, 0, -100)
     v = v.map { r * $0 + p }
     let i = vertices.count
     vertices.append(contentsOf: v)
@@ -73,23 +73,23 @@ func addIcosahedron() {
     let l: Float = 1 / sqrt(phi + 2)
     let k: Float = phi * l
     var v: [simd_float3] = [
-         k * x + l * y,
-         k * x - l * y,
+        k * x + l * y,
+        k * x - l * y,
         -k * x + l * y,
         -k * x - l * y,
-         l * x         + k * z,
+        l * x         + k * z,
         -l * x         + k * z,
-         l * x         - k * z,
+        l * x         - k * z,
         -l * x         - k * z,
-         k * y + l * z,
-         k * y - l * z,
+        k * y + l * z,
+        k * y - l * z,
         -k * y + l * z,
         -k * y - l * z,
     ]
     //    let r = Float.random(in: 1...10)
     //    let p = simd_float3.randomPoint
     let r: Float = 2.0
-    let p = simd_float3(0, 0, -10)
+    let p = simd_float3(0, 0, -50)
     v = v.map { r * $0 + p }
     
     let i = vertices.count
@@ -182,8 +182,8 @@ func addIcosahedron() {
     attributeIndexes.append(contentsOf: (j..<(j + 60)))
 }
 
-//for _ in (0..<2) { addTetrahedron() }
-for _ in (0..<1) { addIcosahedron() }
+for _ in (0..<1) { addTetrahedron() }
+//for _ in (0..<1) { addIcosahedron() }
 
 let directory = String(#file.prefix(upTo: #file.lastIndex(of: "/")!))
 let swiftPath = directory + "/data.swift"

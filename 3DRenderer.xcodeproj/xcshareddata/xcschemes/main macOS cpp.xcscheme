@@ -14,9 +14,9 @@
             buildForAnalyzing = "YES">
             <BuildableReference
                BuildableIdentifier = "primary"
-               BlueprintIdentifier = "4E5DC8762B0FB12D00D6573C"
-               BuildableName = "render_dylib.framework"
-               BlueprintName = "render.dylib"
+               BlueprintIdentifier = "4EE3B90E2B0F56FA00EBEC76"
+               BuildableName = "main macOS cpp.app"
+               BlueprintName = "main macOS cpp"
                ReferencedContainer = "container:3DRenderer.xcodeproj">
             </BuildableReference>
          </BuildActionEntry>
@@ -39,6 +39,16 @@
       debugDocumentVersioning = "YES"
       debugServiceExtension = "internal"
       allowLocationSimulation = "YES">
+      <BuildableProductRunnable
+         runnableDebuggingMode = "0">
+         <BuildableReference
+            BuildableIdentifier = "primary"
+            BlueprintIdentifier = "4EE3B90E2B0F56FA00EBEC76"
+            BuildableName = "main macOS cpp.app"
+            BlueprintName = "main macOS cpp"
+            ReferencedContainer = "container:3DRenderer.xcodeproj">
+         </BuildableReference>
+      </BuildableProductRunnable>
    </LaunchAction>
    <ProfileAction
       buildConfiguration = "Release"
@@ -46,15 +56,16 @@
       savedToolIdentifier = ""
       useCustomWorkingDirectory = "NO"
       debugDocumentVersioning = "YES">
-      <MacroExpansion>
+      <BuildableProductRunnable
+         runnableDebuggingMode = "0">
          <BuildableReference
             BuildableIdentifier = "primary"
-            BlueprintIdentifier = "4E5DC8762B0FB12D00D6573C"
-            BuildableName = "render_dylib.framework"
-            BlueprintName = "render.dylib"
+            BlueprintIdentifier = "4EE3B90E2B0F56FA00EBEC76"
+            BuildableName = "main macOS cpp.app"
+            BlueprintName = "main macOS cpp"
             ReferencedContainer = "container:3DRenderer.xcodeproj">
          </BuildableReference>
-      </MacroExpansion>
+      </BuildableProductRunnable>
    </ProfileAction>
    <AnalyzeAction
       buildConfiguration = "Debug">

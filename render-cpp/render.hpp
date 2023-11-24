@@ -17,8 +17,7 @@ typedef struct {
     float down;
     float left;
     float right;
-    float mouseX;
-    float mouseY;
+    simd_float2 mouse;
 } Input;
 
 #endif /* render_hpp */
