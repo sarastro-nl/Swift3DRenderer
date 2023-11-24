@@ -25,8 +25,6 @@ struct Input {
     var right: Float
     var mouse: simd_float2
 }
-#else
-typealias updateAndRenderFunc = @convention(c) (UnsafePointer<PixelData>, UnsafePointer<Input>) -> Void
 #endif
 
 class ViewController: PlatformController {
@@ -51,6 +49,7 @@ class ViewController: PlatformController {
     let inputController = InputController()
 
 #if CPP
+    typealias updateAndRenderFunc = @convention(c) (UnsafePointer<PixelData>, UnsafePointer<Input>) -> Void
     var updateAndRender: updateAndRenderFunc!
 #endif
 
