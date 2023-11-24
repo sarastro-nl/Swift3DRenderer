@@ -39,7 +39,7 @@ func addTetrahedron() {
     //    let r = Float.random(in: 1...10)
     //    let p = simd_float3.randomPoint
     let r: Float = 2.0
-    let p = simd_float3(0, 0, -100)
+    let p = simd_float3(0, 0, -50)
     v = v.map { r * $0 + p }
     let i = vertices.count
     vertices.append(contentsOf: v)
@@ -182,8 +182,8 @@ func addIcosahedron() {
     attributeIndexes.append(contentsOf: (j..<(j + 60)))
 }
 
-for _ in (0..<1) { addTetrahedron() }
-//for _ in (0..<1) { addIcosahedron() }
+//for _ in (0..<1) { addTetrahedron() }
+for _ in (0..<1) { addIcosahedron() }
 
 let directory = String(#file.prefix(upTo: #file.lastIndex(of: "/")!))
 let swiftPath = directory + "/data.swift"

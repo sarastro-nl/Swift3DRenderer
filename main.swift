@@ -47,6 +47,7 @@ class ViewController: PlatformController {
     var metalLayer: CAMetalLayer!
     let colorSpace = CGColorSpaceCreateDeviceRGB()
     let inputController = InputController()
+    var scale: CGFloat = 0
 
 #if CPP
     typealias updateAndRenderFunc = @convention(c) (UnsafePointer<PixelData>, UnsafePointer<Input>) -> Void
@@ -64,6 +65,7 @@ class ViewController: PlatformController {
         NSApplication.shared.setActivationPolicy(.regular)
         NSApplication.shared.finishLaunching()
         guard let screen = NSScreen.main else { fatalError() }
+        scale = screen.backingScaleFactor
         let size = CGSize(width: 960, height: 540)
         let window = NSWindow(contentRect: CGRect(origin: CGPoint(x: (screen.frame.width - size.width) / 2 + 500, y: (screen.frame.height - size.height) / 2), size: size),
                           styleMask: [.resizable, .miniaturizable, .closable, .titled],
@@ -81,6 +83,7 @@ class ViewController: PlatformController {
         let contentView = MetalView(frame: UIScreen.main.bounds)
         view.addSubview(contentView)
         guard let ml = contentView.layer as? CAMetalLayer else { fatalError() }
+        scale = UIScreen.main.scale
         metalLayer = ml
 #endif
 
@@ -152,8 +155,8 @@ class ViewController: PlatformController {
     
     func resize() {
         frameSize = metalLayer.frame.size
-        //        frameSize.width *= screen.backingScaleFactor
-        //        frameSize.height *= screen.backingScaleFactor
+//        frameSize.width *= scale
+//        frameSize.height *= scale
         metalLayer.drawableSize = frameSize
         pixelData.width = Int32(frameSize.width)
         pixelData.height = Int32(frameSize.height)
