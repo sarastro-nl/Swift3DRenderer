@@ -14,9 +14,9 @@
             buildForAnalyzing = "YES">
             <BuildableReference
                BuildableIdentifier = "primary"
-               BlueprintIdentifier = "4EB5828D2B0D08BE00049821"
-               BuildableName = "main macOS.app"
-               BlueprintName = "main macOS"
+               BlueprintIdentifier = "4E2F0CE42B120FEF009BD65B"
+               BuildableName = "main cpp.app"
+               BlueprintName = "main cpp"
                ReferencedContainer = "container:3DRenderer.xcodeproj">
             </BuildableReference>
          </BuildActionEntry>
@@ -38,15 +38,14 @@
       ignoresPersistentStateOnLaunch = "NO"
       debugDocumentVersioning = "YES"
       debugServiceExtension = "internal"
-      enableGPUFrameCaptureMode = "3"
       allowLocationSimulation = "YES">
       <BuildableProductRunnable
          runnableDebuggingMode = "0">
          <BuildableReference
             BuildableIdentifier = "primary"
-            BlueprintIdentifier = "4EB5828D2B0D08BE00049821"
-            BuildableName = "main macOS.app"
-            BlueprintName = "main macOS"
+            BlueprintIdentifier = "4E2F0CE42B120FEF009BD65B"
+            BuildableName = "main cpp.app"
+            BlueprintName = "main cpp"
             ReferencedContainer = "container:3DRenderer.xcodeproj">
          </BuildableReference>
       </BuildableProductRunnable>
@@ -61,9 +60,9 @@
          runnableDebuggingMode = "0">
          <BuildableReference
             BuildableIdentifier = "primary"
-            BlueprintIdentifier = "4EB5828D2B0D08BE00049821"
-            BuildableName = "main macOS.app"
-            BlueprintName = "main macOS"
+            BlueprintIdentifier = "4E2F0CE42B120FEF009BD65B"
+            BuildableName = "main cpp.app"
+            BlueprintName = "main cpp"
             ReferencedContainer = "container:3DRenderer.xcodeproj">
          </BuildableReference>
       </BuildableProductRunnable>

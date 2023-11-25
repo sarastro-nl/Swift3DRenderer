@@ -14,9 +14,9 @@
             buildForAnalyzing = "YES">
             <BuildableReference
                BuildableIdentifier = "primary"
-               BlueprintIdentifier = "4EB582702B0D047C00049821"
-               BuildableName = "main iOS.app"
-               BlueprintName = "main iOS"
+               BlueprintIdentifier = "4E3D639E2B12082A003F490F"
+               BuildableName = "main.app"
+               BlueprintName = "main"
                ReferencedContainer = "container:3DRenderer.xcodeproj">
             </BuildableReference>
          </BuildActionEntry>
@@ -38,15 +38,14 @@
       ignoresPersistentStateOnLaunch = "NO"
       debugDocumentVersioning = "YES"
       debugServiceExtension = "internal"
-      enableGPUFrameCaptureMode = "3"
       allowLocationSimulation = "YES">
       <BuildableProductRunnable
          runnableDebuggingMode = "0">
          <BuildableReference
             BuildableIdentifier = "primary"
-            BlueprintIdentifier = "4EB582702B0D047C00049821"
-            BuildableName = "main iOS.app"
-            BlueprintName = "main iOS"
+            BlueprintIdentifier = "4E3D639E2B12082A003F490F"
+            BuildableName = "main.app"
+            BlueprintName = "main"
             ReferencedContainer = "container:3DRenderer.xcodeproj">
          </BuildableReference>
       </BuildableProductRunnable>
@@ -61,9 +60,9 @@
          runnableDebuggingMode = "0">
          <BuildableReference
             BuildableIdentifier = "primary"
-            BlueprintIdentifier = "4EB582702B0D047C00049821"
-            BuildableName = "main iOS.app"
-            BlueprintName = "main iOS"
+            BlueprintIdentifier = "4E3D639E2B12082A003F490F"
+            BuildableName = "main.app"
+            BlueprintName = "main"
             ReferencedContainer = "container:3DRenderer.xcodeproj">
          </BuildableReference>
       </BuildableProductRunnable>
