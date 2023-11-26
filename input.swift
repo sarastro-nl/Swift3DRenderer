@@ -12,7 +12,7 @@ class InputController {
     var rightControllerDelta = simd_float2.zero
     var controller: GCVirtualController?
 #endif
-
+    
     func setupInput() {
 #if os(macOS)
         NotificationCenter.default.addObserver(forName: .GCKeyboardDidConnect, object: nil, queue: nil, using: keyboardDidConnect)
@@ -61,16 +61,13 @@ class InputController {
 #else
     func controllerDidConnect(notification: Notification) {
         guard let controller = notification.object as? GCController else { return }
-        for ts in [GCInputLeftThumbstick, GCInputRightThumbstick] {
-            controller.physicalInputProfile.dpads[ts]?.valueChangedHandler = { [weak self] pad, deltaX, deltaY in
-                if pad.localizedName == GCInputLeftThumbstick {
-                    self?.leftControllerDelta.x = deltaX
-                    self?.leftControllerDelta.y = deltaY
-                } else {
-                    self?.rightControllerDelta.x = deltaX
-                    self?.rightControllerDelta.y = deltaY
-                }
-            }
+        controller.physicalInputProfile.dpads[GCInputLeftThumbstick]?.valueChangedHandler = { [weak self] pad, deltaX, deltaY in
+            self?.leftControllerDelta.x = deltaX
+            self?.leftControllerDelta.y = deltaY
+        }
+        controller.physicalInputProfile.dpads[GCInputRightThumbstick]?.valueChangedHandler = { [weak self] pad, deltaX, deltaY in
+            self?.rightControllerDelta.x = deltaX
+            self?.rightControllerDelta.y = deltaY
         }
     }
 #endif
@@ -87,10 +84,10 @@ class InputController {
             input.mouse = mouse
         }
 #else
-        input.left = leftControllerDelta.x > 0 ? 0 : -leftControllerDelta.x
-        input.right = leftControllerDelta.x > 0 ? leftControllerDelta.x : 0
-        input.up = leftControllerDelta.y > 0 ? leftControllerDelta.y : 0
-        input.down = leftControllerDelta.y > 0 ? 0 : -leftControllerDelta.y
+        input.left = -leftControllerDelta.x
+        input.right = leftControllerDelta.x
+        input.up = leftControllerDelta.y
+        input.down = -leftControllerDelta.y
         input.mouse += 6 * rightControllerDelta
 #endif
     }

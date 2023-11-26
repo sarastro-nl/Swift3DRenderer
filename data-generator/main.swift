@@ -182,8 +182,8 @@ func addIcosahedron() {
     attributeIndexes.append(contentsOf: (j..<(j + 60)))
 }
 
-//for _ in (0..<1) { addTetrahedron() }
-for _ in (0..<1) { addIcosahedron() }
+//for _ in (0..<2) { addTetrahedron() }
+for _ in (0..<2) { addIcosahedron() }
 
 let directory = String(#file.prefix(upTo: #file.lastIndex(of: "/")!))
 let swiftPath = directory + "/data.swift"
@@ -248,7 +248,7 @@ simd_float3 color;
 const int32_t world_vertices_count = \(vertices.count);
 const int32_t world_attributes_count = \(attributes.count);
 const int32_t world_triangles_count = \(vertexIndexes.count/3);
-simd_float4 world_vertices[\(vertices.count)] = {
+const simd_float4 world_vertices[\(vertices.count)] = {
 
 """
 for v in vertices {
@@ -256,7 +256,7 @@ for v in vertices {
 }
 s += """
 };
-int32_t vertex_indexes[\(vertexIndexes.count)] = {
+const int32_t vertex_indexes[\(vertexIndexes.count)] = {
 
 """
 for i in stride(from: 0, to: vertexIndexes.count, by: 3) {
@@ -264,7 +264,7 @@ for i in stride(from: 0, to: vertexIndexes.count, by: 3) {
 }
 s += """
 };
-vertex_attribute_t world_attributes[\(attributes.count)] = {
+const vertex_attribute_t world_attributes[\(attributes.count)] = {
 
 """
 for a in attributes {
@@ -272,7 +272,7 @@ for a in attributes {
 }
 s += """
 };
-int32_t attribute_indexes[\(attributeIndexes.count)] = {
+const int32_t attribute_indexes[\(attributeIndexes.count)] = {
 
 """
 for i in stride(from: 0, to: attributeIndexes.count, by: 3) {
