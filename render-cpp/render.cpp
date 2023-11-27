@@ -115,12 +115,11 @@ void updateAndRender(const PixelData *pixel_data, const Input *input) {
     memset(depth_buffer.buffer, 0, depth_buffer.buffer_size);
     memset_pattern4(pixel_data->buffer, &config.background_color, pixel_data->bufferSize);
 
-    const float width = (float)pixel_data->width;
-    const float height = (float)pixel_data->height;
+    const simd_float2 size = simd_make_float2((float)pixel_data->width, (float)pixel_data->height);
     for (int i = 0; i < world_vertices_count; i++) {
         const simd_float4 v = simd_mul(state.camera_matrix, world_vertices[i]);
         camera_vertices[i] = v.xyz;
-        raster_vertices[i] = simd_make_float3(v.x, -v.y, 0) * config.factor / -v.z + simd_make_float3(width / 2, height / 2, -v.z);
+        raster_vertices[i] = simd_make_float3(v.x, -v.y, 0) * config.factor / -v.z + simd_make_float3(size.xy / 2, -v.z);
     }
     for (int i = 0; i < world_attributes_count; i++) {
         const vertex_attribute_t a = world_attributes[i];
@@ -134,9 +133,12 @@ void updateAndRender(const PixelData *pixel_data, const Input *input) {
         const simd_float3 rv2 = raster_vertices[vi2];
         const simd_float3 rv3 = raster_vertices[vi3];
         const simd_float3 rvmin = simd_min(simd_min(rv1, rv2), rv3);
+        if (rvmin.x > size[0] || rvmin.y > size[1] || rvmin.z < config.near) { continue; }
         const simd_float3 rvmax = simd_max(simd_max(rv1, rv2), rv3);
-        if (rvmin.x > width || rvmin.y > height || rvmax.x < 0 || rvmax.y < 0 || rvmin.z < config.near) { continue; }
-        
+        if (rvmax.x < 0 || rvmax.y < 0) { continue; }
+        const float area = EDGE_FUNCTION(rv1, rv2, rv3);
+        if (area < 0) { continue; }
+        const float oneOverArea = 1 / area;
         const attribute_t a1 = attributes[attribute_indexes[i]];
         const attribute_t a2 = attributes[attribute_indexes[i + 1]];
         const attribute_t a3 = attributes[attribute_indexes[i + 2]];
@@ -148,13 +150,12 @@ void updateAndRender(const PixelData *pixel_data, const Input *input) {
         const int32_t xmax = std::min(pixel_data->width - 1, (int)rvmax.x);
         const int32_t ymin = std::max(0, (int)rvmin.y);
         const int32_t ymax = std::min(pixel_data->height - 1, (int)rvmax.y);
-        const float oneOverArea = 1 / EDGE_FUNCTION(rv1, rv2, rv3);
         const simd_float2 p = simd_make_float2((float)xmin + 0.5, (float)ymin + 0.5);
-        const simd_float3 wstart = simd_make_float3(EDGE_FUNCTION(rv2, rv3, p), EDGE_FUNCTION(rv3, rv1, p), EDGE_FUNCTION(rv1, rv2, p));
+        const simd_float3 wstart = simd_make_float3(EDGE_FUNCTION(rv2, rv3, p), EDGE_FUNCTION(rv3, rv1, p), EDGE_FUNCTION(rv1, rv2, p)) * oneOverArea;
         weight_t weight = {
             .w = wstart, .wy = wstart,
-            .dx = simd_make_float3(rv2.y - rv3.y, rv3.y - rv1.y, rv1.y - rv2.y),
-            .dy = simd_make_float3(rv3.x - rv2.x, rv1.x - rv3.x, rv2.x - rv1.x) };
+            .dx = simd_make_float3(rv2.y - rv3.y, rv3.y - rv1.y, rv1.y - rv2.y) * oneOverArea,
+            .dy = simd_make_float3(rv3.x - rv2.x, rv1.x - rv3.x, rv2.x - rv1.x) * oneOverArea };
         const int32_t bufferStart = ymin * pixel_data->width + xmin;
         pointers_t pointers = {
             .pbuffer = pixel_data->buffer + bufferStart,
@@ -164,11 +165,10 @@ void updateAndRender(const PixelData *pixel_data, const Input *input) {
         for (int y = ymin; y <= ymax; y++) {
             for (int x = xmin; x <= xmax; x++) {
                 if (weight.w[0] >= 0 && weight.w[1] >= 0 && weight.w[2] >= 0) {
-                    simd_float3 w = oneOverArea * weight.w;
-                    const float z = simd_dot(rvz, w);
+                    const float z = simd_dot(rvz, weight.w);
                     if (z > *pointers.dbuffer) {
                         *pointers.dbuffer = z;
-                        w /= z;
+                        const simd_float3 w = weight.w / z;
                         const simd_float3 point = -simd_normalize(preMul1.point * w[0] + preMul2.point * w[1] + preMul3.point * w[2]);
                         const simd_float3 normal = simd_normalize(preMul1.normal * w[0] + preMul2.normal * w[1] + preMul3.normal * w[2]);
                         const simd_float3 color = preMul1.color * w[0] + preMul2.color * w[1] + preMul3.color * w[2];

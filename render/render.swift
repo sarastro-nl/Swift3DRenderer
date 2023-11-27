@@ -47,6 +47,7 @@ private func RGB(_ r: Float, _ g: Float, _ b: Float) -> UInt32 {
     return (256 * UInt32(r) + UInt32(g)) * 256 + UInt32(b)
 }
 
+@inline(__always)
 private func edgeFunction(_ v1: inout simd_float3, _ v2: inout simd_float3, _ v3: inout simd_float3) -> Float {
     (v3.x - v1.x) * (v1.y - v2.y) + (v3.y - v1.y) * (v2.x - v1.x)
 }
@@ -87,13 +88,12 @@ func updateAndRender(_ pixelData: inout PixelData, _ input: inout Input) {
     memset(DepthBuffer.buffer, 0, depthBufferSize)
     memset_pattern4(pixelData.buffer, &Config.backgroundColor, Int(pixelData.bufferSize))
 
-    let width = Float(pixelData.width)
-    let height = Float(pixelData.height)
+    let size = simd_float2(Float(pixelData.width), Float(pixelData.height))
     let cameraVertices = worldVertices.map {
         simd_make_float3(simd_mul(State.cameraMatrix, $0))
     }
     let rasterVertices = cameraVertices.map {
-        simd_float3($0.x, -$0.y, 0) * Config.factor / -$0.z + simd_float3(width / 2, height / 2, -$0.z)
+        simd_float3($0.x, -$0.y, 0) * Config.factor / -$0.z + simd_float3(size[0] / 2, size[1] / 2, -$0.z)
     }
     let attributes = worldAttributes.map {
         Attribute(point: .zero, normal: simd_make_float3(simd_mul(State.cameraMatrix, $0.normal)), color: $0.color)
@@ -102,10 +102,12 @@ func updateAndRender(_ pixelData: inout PixelData, _ input: inout Input) {
         let (vi1, vi2, vi3) = (vertexIndexes[i], vertexIndexes[i + 1], vertexIndexes[i + 2])
         var (rv1, rv2, rv3) = (rasterVertices[vi1], rasterVertices[vi2], rasterVertices[vi3])
         let rvmin = simd_min(simd_min(rv1, rv2), rv3)
+        if rvmin.x > size[0] || rvmin.y > size[1] || rvmin.z < Config.near { continue }
         let rvmax = simd_max(simd_max(rv1, rv2), rv3)
-        if rvmin.x >= width || rvmin.y >= height || rvmax.x < 0 || rvmax.y < 0 || rvmin.z < Config.near { continue }
-        
-        let oneOverArea = 1 / edgeFunction(&rv1, &rv2, &rv3)
+        if rvmax.x < 0 || rvmax.y < 0 { continue }
+        let area = edgeFunction(&rv1, &rv2, &rv3)
+        if area < 0 { continue }
+        let oneOverArea = 1 / area
         let (a1, a2, a3) = (attributes[attributeIndexes[i]], attributes[attributeIndexes[i + 1]], attributes[attributeIndexes[i + 2]])
         let rvz = 1 / simd_float3(rv1.z, rv2.z, rv3.z)
         let (preMul1, preMul2, preMul3) = (Attribute(point: cameraVertices[vi1] * rvz[0], normal: a1.normal * rvz[0], color: a1.color * rvz[0]),
@@ -116,11 +118,11 @@ func updateAndRender(_ pixelData: inout PixelData, _ input: inout Input) {
         let ymin = max(0, Int(rvmin.y))
         let ymax = min(Int(pixelData.height) - 1, Int(rvmax.y))
         var pStart = simd_float3(Float(xmin) + 0.5, Float(ymin) + 0.5, 0)
-        let wStart = simd_float3(edgeFunction(&rv2, &rv3, &pStart), edgeFunction(&rv3, &rv1, &pStart), edgeFunction(&rv1, &rv2, &pStart))
+        let wStart = simd_float3(edgeFunction(&rv2, &rv3, &pStart), edgeFunction(&rv3, &rv1, &pStart), edgeFunction(&rv1, &rv2, &pStart)) * oneOverArea
         Weight.w = wStart
         Weight.wy = wStart
-        Weight.dx = simd_float3(rv2.y - rv3.y, rv3.y - rv1.y, rv1.y - rv2.y)
-        Weight.dy = simd_float3(rv3.x - rv2.x, rv1.x - rv3.x, rv2.x - rv1.x)
+        Weight.dx = simd_float3(rv2.y - rv3.y, rv3.y - rv1.y, rv1.y - rv2.y) * oneOverArea
+        Weight.dy = simd_float3(rv3.x - rv2.x, rv1.x - rv3.x, rv2.x - rv1.x) * oneOverArea
         let bufferStart = ymin * Int(pixelData.width) + xmin
         Pointers.pBuffer = pixelData.buffer + bufferStart
         Pointers.dBuffer = DepthBuffer.buffer + bufferStart
@@ -128,11 +130,10 @@ func updateAndRender(_ pixelData: inout PixelData, _ input: inout Input) {
         for _ in ymin...ymax {
             for _ in xmin...xmax {
                 if Weight.w[0] >= 0 && Weight.w[1] >= 0 && Weight.w[2] >= 0 {
-                    var w = oneOverArea * Weight.w
-                    let z = dot(rvz, w)
+                    let z = dot(rvz, Weight.w)
                     if z > Pointers.dBuffer.pointee {
                         Pointers.dBuffer.pointee = z
-                        w /= z
+                        let w = Weight.w / z
                         let point = -normalize(preMul1.point * w[0] + preMul2.point * w[1] + preMul3.point * w[2])
                         let normal = normalize(preMul1.normal * w[0] + preMul2.normal * w[1] + preMul3.normal * w[2])
                         let color = preMul1.color * w[0] + preMul2.color * w[1] + preMul3.color * w[2]
