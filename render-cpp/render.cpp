@@ -42,6 +42,12 @@ typedef struct {
     const simd_float3 dy;
 } weight_t;
 
+typedef struct {
+    uint32_t *pbuffer;
+    float *dbuffer;
+    const int xDelta;
+} pointers_t;
+
 #define RGB(r, g, b) (((((uint8_t)(r) << 8) + (uint8_t)(g)) << 8) + (uint8_t)(b))
 #define EDGE_FUNCTION(a, b, c) ((c.x - a.x) * (a.y - b.y) + (c.y - a.y) * (b.x - a.x))
 
@@ -149,28 +155,33 @@ void updateAndRender(const PixelData *pixel_data, const Input *input) {
             .w = wstart, .wy = wstart,
             .dx = simd_make_float3(rv2.y - rv3.y, rv3.y - rv1.y, rv1.y - rv2.y),
             .dy = simd_make_float3(rv3.x - rv2.x, rv1.x - rv3.x, rv2.x - rv1.x) };
-        int32_t entryStart = ymin * pixel_data->width + xmin;
-        simd_int3 entry = simd_make_int3(entryStart, entryStart, pixel_data->width);
+        const int32_t bufferStart = ymin * pixel_data->width + xmin;
+        pointers_t pointers = {
+            .pbuffer = pixel_data->pixelBuffer + bufferStart,
+            .dbuffer = depth_buffer.buffer + bufferStart,
+            .xDelta = pixel_data->width - xmax + xmin - 1,
+        };
         for (int y = ymin; y <= ymax; y++) {
             for (int x = xmin; x <= xmax; x++) {
                 if (weight.w[0] >= 0 && weight.w[1] >= 0 && weight.w[2] >= 0) {
                     simd_float3 w = oneOverArea * weight.w;
                     float z = simd_dot(rvz, w);
-                    if (z > depth_buffer.buffer[entry[0]]) {
-                        depth_buffer.buffer[entry[0]] = z;
+                    if (z > *pointers.dbuffer) {
+                        *pointers.dbuffer = z;
                         w /= z;
                         const simd_float3 point = -simd_normalize(preMul1.point * w[0] + preMul2.point * w[1] + preMul3.point * w[2]);
                         const simd_float3 normal = simd_normalize(preMul1.normal * w[0] + preMul2.normal * w[1] + preMul3.normal * w[2]);
                         const simd_float3 color = preMul1.color * w[0] + preMul2.color * w[1] + preMul3.color * w[2];
                         const simd_float3 shadedColor = simd_dot(point, normal) * color;
-                        pixel_data->pixelBuffer[entry[0]] = RGB(shadedColor[0], shadedColor[1], shadedColor[2]);
+                        *pointers.pbuffer = RGB(shadedColor[0], shadedColor[1], shadedColor[2]);
                     }
                 }
-                entry[0]++;
+                pointers.pbuffer++;
+                pointers.dbuffer++;
                 weight.w += weight.dx;
             }
-            entry[1] += entry[2];
-            entry[0] = entry[1];
+            pointers.pbuffer += pointers.xDelta;
+            pointers.dbuffer += pointers.xDelta;
             weight.wy += weight.dy;
             weight.w = weight.wy;
         }
