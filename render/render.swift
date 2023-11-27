@@ -20,13 +20,26 @@ private struct Config {
     static var factor: Float = 1
     static let speed: Float = 0.1
     static let rotationSpeed: Float = 0.1
-    static let backgroundColor = RGB(30, 30, 30)
+    static var backgroundColor = RGB(30, 30, 30)
 }
 
 private struct Attribute {
     var point: simd_float3
     let normal: simd_float3
     let color: simd_float3
+}
+
+private struct Weight {
+    static var w = simd_float3.zero
+    static var wy = simd_float3.zero
+    static var dx = simd_float3.zero
+    static var dy = simd_float3.zero
+}
+
+private struct Pointers {
+    static var pBuffer: UnsafeMutablePointer<UInt32> = .allocate(capacity: 0)
+    static var dBuffer: UnsafeMutablePointer<Float> = .allocate(capacity: 0)
+    static var xDelta = 0
 }
 
 private func RGB(_ r: Float, _ g: Float, _ b: Float) -> UInt32 {
@@ -72,8 +85,7 @@ func updateAndRender(_ pixelData: inout PixelData, _ input: inout Input) {
         Config.factor = Config.near * Float(pixelData.height) / (2 * Config.scale)
     }
     memset(DepthBuffer.buffer, 0, depthBufferSize)
-    var backgroundColor = Config.backgroundColor
-    memset_pattern4(pixelData.pixelBuffer, &backgroundColor, Int(pixelData.bufferSize))
+    memset_pattern4(pixelData.buffer, &Config.backgroundColor, Int(pixelData.bufferSize))
 
     let width = Float(pixelData.width)
     let height = Float(pixelData.height)
@@ -93,9 +105,8 @@ func updateAndRender(_ pixelData: inout PixelData, _ input: inout Input) {
         let rvmax = simd_max(simd_max(rv1, rv2), rv3)
         if rvmin.x >= width || rvmin.y >= height || rvmax.x < 0 || rvmax.y < 0 || rvmin.z < Config.near { continue }
         
-        let area = edgeFunction(&rv1, &rv2, &rv3)
-        let (ai1, ai2, ai3) = (attributeIndexes[i], attributeIndexes[i + 1], attributeIndexes[i + 2])
-        let (a1, a2, a3) = (attributes[ai1], attributes[ai2], attributes[ai3])
+        let oneOverArea = 1 / edgeFunction(&rv1, &rv2, &rv3)
+        let (a1, a2, a3) = (attributes[attributeIndexes[i]], attributes[attributeIndexes[i + 1]], attributes[attributeIndexes[i + 2]])
         let rvz = 1 / simd_float3(rv1.z, rv2.z, rv3.z)
         let (preMul1, preMul2, preMul3) = (Attribute(point: cameraVertices[vi1] * rvz[0], normal: a1.normal * rvz[0], color: a1.color * rvz[0]),
                                            Attribute(point: cameraVertices[vi2] * rvz[1], normal: a2.normal * rvz[1], color: a2.color * rvz[1]),
@@ -104,28 +115,39 @@ func updateAndRender(_ pixelData: inout PixelData, _ input: inout Input) {
         let xmax = min(Int(pixelData.width) - 1, Int(rvmax.x))
         let ymin = max(0, Int(rvmin.y))
         let ymax = min(Int(pixelData.height) - 1, Int(rvmax.y))
-        for y in (ymin...ymax) {
-            let ypart = y * Int(pixelData.width)
-            for x in (xmin...xmax) {
-                var p = simd_float3(Float(x) + 0.5, Float(y) + 0.5, 0)
-                var w = simd_float3(edgeFunction(&rv2, &rv3, &p), edgeFunction(&rv3, &rv1, &p), edgeFunction(&rv1, &rv2, &p))
-                if w >= .zero {
-                    w /= area
-                    let xpart = x + ypart
-                    var z = dot(rvz, w)
-                    if z > DepthBuffer.buffer[xpart] {
-                        DepthBuffer.buffer[xpart] = z
-                        z = 1 / z
-                        let point = z * (preMul1.point * w[0] + preMul2.point * w[1] + preMul3.point * w[2])
-                        let normal = z * (preMul1.normal * w[0] + preMul2.normal * w[1] + preMul3.normal * w[2])
-                        let color = z * (preMul1.color * w[0] + preMul2.color * w[1] + preMul3.color * w[2])
-                        let p = -normalize(point)
-                        let n = normalize(normal)
-                        let dot = dot(p, n)
-                        pixelData.pixelBuffer[xpart] = RGB(dot * color[0], dot * color[1], dot * color[2])
+        var pStart = simd_float3(Float(xmin) + 0.5, Float(ymin) + 0.5, 0)
+        let wStart = simd_float3(edgeFunction(&rv2, &rv3, &pStart), edgeFunction(&rv3, &rv1, &pStart), edgeFunction(&rv1, &rv2, &pStart))
+        Weight.w = wStart
+        Weight.wy = wStart
+        Weight.dx = simd_float3(rv2.y - rv3.y, rv3.y - rv1.y, rv1.y - rv2.y)
+        Weight.dy = simd_float3(rv3.x - rv2.x, rv1.x - rv3.x, rv2.x - rv1.x)
+        let bufferStart = ymin * Int(pixelData.width) + xmin
+        Pointers.pBuffer = pixelData.buffer + bufferStart
+        Pointers.dBuffer = DepthBuffer.buffer + bufferStart
+        Pointers.xDelta = Int(pixelData.width) - xmax + xmin - 1
+        for _ in ymin...ymax {
+            for _ in xmin...xmax {
+                if Weight.w[0] >= 0 && Weight.w[1] >= 0 && Weight.w[2] >= 0 {
+                    var w = oneOverArea * Weight.w
+                    let z = dot(rvz, w)
+                    if z > Pointers.dBuffer.pointee {
+                        Pointers.dBuffer.pointee = z
+                        w /= z
+                        let point = -normalize(preMul1.point * w[0] + preMul2.point * w[1] + preMul3.point * w[2])
+                        let normal = normalize(preMul1.normal * w[0] + preMul2.normal * w[1] + preMul3.normal * w[2])
+                        let color = preMul1.color * w[0] + preMul2.color * w[1] + preMul3.color * w[2]
+                        let shadedColor = dot(point, normal) * color
+                        Pointers.pBuffer.pointee = RGB(shadedColor[0], shadedColor[1], shadedColor[2])
                     }
                 }
+                Weight.w += Weight.dx
+                Pointers.pBuffer += 1
+                Pointers.dBuffer += 1
             }
+            Weight.wy += Weight.dy
+            Weight.w = Weight.wy
+            Pointers.pBuffer += Pointers.xDelta
+            Pointers.dBuffer += Pointers.xDelta
         }
     }
 }

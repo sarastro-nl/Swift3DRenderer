@@ -11,7 +11,7 @@ import simd
 
 #if !CPP
 struct PixelData {
-    var pixelBuffer: UnsafeMutablePointer<UInt32>
+    var buffer: UnsafeMutablePointer<UInt32>
     var width: Int32
     var height: Int32
     let bytesPerPixel: Int32
@@ -38,8 +38,8 @@ class ViewController: PlatformController {
     var frameSize = CGSize.zero
     
     var currentBufferIndex = 0
-    var pixelBufferMemory: UnsafeMutablePointer<UInt32> = .allocate(capacity: 0)
-    var pixelData = PixelData(pixelBuffer: .allocate(capacity: 0), width: 0, height: 0, bytesPerPixel: 4, bufferSize: 0)
+    var bufferMemory: UnsafeMutablePointer<UInt32> = .allocate(capacity: 0)
+    var pixelData = PixelData(buffer: .allocate(capacity: 0), width: 0, height: 0, bytesPerPixel: 4, bufferSize: 0)
     var input = Input(up: 0, down: 0, left: 0, right: 0, mouse: simd_float2.zero)
     
     var ciContext: CIContext!
@@ -118,14 +118,14 @@ class ViewController: PlatformController {
 
         inputController.updateInput(&input)
         
-        pixelData.pixelBuffer = pixelBufferMemory + currentBufferIndex * Int(pixelData.width * pixelData.height)
+        pixelData.buffer = bufferMemory + currentBufferIndex * Int(pixelData.width * pixelData.height)
         currentBufferIndex = (currentBufferIndex + 1) % 2
 
         let mark = CACurrentMediaTime()
         updateAndRender(&pixelData, &input)
         totalTime += CACurrentMediaTime() - mark
 
-        let ciImage = CIImage(bitmapData: Data(bytesNoCopy: pixelData.pixelBuffer, count: Int(pixelData.bufferSize), deallocator: .none),
+        let ciImage = CIImage(bitmapData: Data(bytesNoCopy: pixelData.buffer, count: Int(pixelData.bufferSize), deallocator: .none),
                           bytesPerRow: Int(pixelData.bytesPerPixel * pixelData.width),
                           size: frameSize,
                           format: .BGRA8,
@@ -161,7 +161,7 @@ class ViewController: PlatformController {
         pixelData.width = Int32(frameSize.width)
         pixelData.height = Int32(frameSize.height)
         pixelData.bufferSize = pixelData.bytesPerPixel * pixelData.width * pixelData.height
-        pixelBufferMemory = unsafeBitCast(realloc(pixelBufferMemory, 2 * Int(pixelData.bufferSize)), to: UnsafeMutablePointer<UInt32>.self)
+        bufferMemory = unsafeBitCast(realloc(bufferMemory, 2 * Int(pixelData.bufferSize)), to: UnsafeMutablePointer<UInt32>.self)
     }
 }
 

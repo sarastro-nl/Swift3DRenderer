@@ -2,6 +2,36 @@ import Foundation
 import simd
 import AppKit
 
+extension NSColor {
+    var simd_color: simd_float3 {
+        guard let ci = CIColor(color: self) else { return .zero }
+        return simd_float3(Float(ci.red * 255), Float(ci.green * 255), Float(ci.blue * 255))
+    }
+}
+
+extension simd_float3 {
+    static var randomPoint: simd_float3 { simd_float3(Float.random(in: -100...100), Float.random(in: -100...100), Float.random(in: -100...100)) }
+    
+    static var randomUnitSpherePoint: simd_float3 {
+        let cz = Float.random(in: -1...1)
+        let angle = Float.random(in: 0..<2*Float.pi)
+        let cx = cos(angle) * sqrt(1 - cz * cz)
+        let cy = sin(angle) * sqrt(1 - cz * cz)
+        return simd_float3(cx, cy, cz)
+    }
+    
+    static var randomUnitAxis: (simd_float3, simd_float3, simd_float3) {
+        let x = simd_float3.randomUnitSpherePoint
+        var q: simd_float3
+        repeat {
+            q = simd_float3.randomUnitSpherePoint
+        } while q == x || q == -x
+        let y = normalize(cross(x, q))
+        let z = cross(x, y)
+        return (x, y, z)
+    }
+}
+
 struct VertexAttribute {
     let n: simd_float3
     let c: simd_float3
@@ -11,13 +41,6 @@ var vertices: [simd_float3] = []
 var vertexIndexes: [Int] = []
 var attributes: [VertexAttribute] = []
 var attributeIndexes: [Int] = []
-
-extension NSColor {
-    var simd_color: simd_float3 {
-        guard let ci = CIColor(color: self) else { return .zero }
-        return simd_float3(Float(ci.red * 255), Float(ci.green * 255), Float(ci.blue * 255))
-    }
-}
 
 let orange = NSColor.orange.simd_color
 let red = NSColor.red.simd_color

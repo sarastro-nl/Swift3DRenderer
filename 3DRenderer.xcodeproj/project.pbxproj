@@ -14,13 +14,11 @@
 		4E2F0CF52B121020009BD65B /* render_dylib.framework in Embed Frameworks */ = {isa = PBXBuildFile; fileRef = 4E5DC8772B0FB12D00D6573C /* render_dylib.framework */; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
 		4E3D63B02B120B7F003F490F /* input.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4EB604112B0E6C98008A435B /* input.swift */; };
 		4E3D63B12B120B7F003F490F /* main.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4EB582882B0D049B00049821 /* main.swift */; };
-		4E3D63B22B120B7F003F490F /* simd.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4EB604022B0D32E3008A435B /* simd.swift */; };
 		4E3D63B32B120B7F003F490F /* data.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4EB604072B0D3664008A435B /* data.swift */; };
 		4E3D63B42B120B7F003F490F /* render.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4EB603F12B0D308A008A435B /* render.swift */; };
 		4E3D63B52B120BAD003F490F /* GameController.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 4EB604152B0E6DF2008A435B /* GameController.framework */; platformFilter = ios; };
 		4E5DC8832B0FB16000D6573C /* render.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 4EE3B92A2B0F599100EBEC76 /* render.cpp */; };
 		4EB603FE2B0D32B4008A435B /* main.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4EB603FD2B0D32B4008A435B /* main.swift */; };
-		4EB604052B0D3302008A435B /* simd.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4EB604022B0D32E3008A435B /* simd.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -78,7 +76,6 @@
 		4EB603F12B0D308A008A435B /* render.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = render.swift; sourceTree = "<group>"; };
 		4EB603FB2B0D32B4008A435B /* data-generator */ = {isa = PBXFileReference; explicitFileType = "compiled.mach-o.executable"; includeInIndex = 0; path = "data-generator"; sourceTree = BUILT_PRODUCTS_DIR; };
 		4EB603FD2B0D32B4008A435B /* main.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = main.swift; sourceTree = "<group>"; };
-		4EB604022B0D32E3008A435B /* simd.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = simd.swift; sourceTree = "<group>"; };
 		4EB604072B0D3664008A435B /* data.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = data.swift; sourceTree = "<group>"; };
 		4EB604112B0E6C98008A435B /* input.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = input.swift; sourceTree = "<group>"; };
 		4EB604152B0E6DF2008A435B /* GameController.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = GameController.framework; path = Platforms/iPhoneOS.platform/Developer/SDKs/iPhoneOS17.0.sdk/System/Library/Frameworks/GameController.framework; sourceTree = DEVELOPER_DIR; };
@@ -129,7 +126,6 @@
 				4EE3B93F2B0F5DE900EBEC76 /* bridging-header.h */,
 				4EB604112B0E6C98008A435B /* input.swift */,
 				4EB582882B0D049B00049821 /* main.swift */,
-				4EB604022B0D32E3008A435B /* simd.swift */,
 				4EB603FC2B0D32B4008A435B /* data-generator */,
 				4EB604142B0E6DF2008A435B /* Frameworks */,
 				4EB582722B0D047C00049821 /* Products */,
@@ -378,7 +374,6 @@
 			files = (
 				4E3D63B02B120B7F003F490F /* input.swift in Sources */,
 				4E3D63B12B120B7F003F490F /* main.swift in Sources */,
-				4E3D63B22B120B7F003F490F /* simd.swift in Sources */,
 				4E3D63B32B120B7F003F490F /* data.swift in Sources */,
 				4E3D63B42B120B7F003F490F /* render.swift in Sources */,
 			);
@@ -396,7 +391,6 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				4EB604052B0D3302008A435B /* simd.swift in Sources */,
 				4EB603FE2B0D32B4008A435B /* main.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;

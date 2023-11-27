@@ -176,14 +176,14 @@ void updateAndRender(const PixelData *pixel_data, const Input *input) {
                         *pointers.pbuffer = RGB(shadedColor[0], shadedColor[1], shadedColor[2]);
                     }
                 }
+                weight.w += weight.dx;
                 pointers.pbuffer++;
                 pointers.dbuffer++;
-                weight.w += weight.dx;
             }
-            pointers.pbuffer += pointers.xDelta;
-            pointers.dbuffer += pointers.xDelta;
             weight.wy += weight.dy;
             weight.w = weight.wy;
+            pointers.pbuffer += pointers.xDelta;
+            pointers.dbuffer += pointers.xDelta;
         }
     }
 }
