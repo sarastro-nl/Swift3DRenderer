@@ -113,7 +113,7 @@ void updateAndRender(const PixelData *pixel_data, const Input *input) {
         config.factor = config.near * pixel_data->height / (2 * config.scale);
     }
     memset(depth_buffer.buffer, 0, depth_buffer.buffer_size);
-    memset_pattern4(pixel_data->pixelBuffer, &config.background_color, pixel_data->bufferSize);
+    memset_pattern4(pixel_data->buffer, &config.background_color, pixel_data->bufferSize);
 
     const float width = (float)pixel_data->width;
     const float height = (float)pixel_data->height;
@@ -148,16 +148,16 @@ void updateAndRender(const PixelData *pixel_data, const Input *input) {
         const int32_t xmax = std::min(pixel_data->width - 1, (int)rvmax.x);
         const int32_t ymin = std::max(0, (int)rvmin.y);
         const int32_t ymax = std::min(pixel_data->height - 1, (int)rvmax.y);
+        const float oneOverArea = 1 / EDGE_FUNCTION(rv1, rv2, rv3);
         const simd_float2 p = simd_make_float2((float)xmin + 0.5, (float)ymin + 0.5);
         const simd_float3 wstart = simd_make_float3(EDGE_FUNCTION(rv2, rv3, p), EDGE_FUNCTION(rv3, rv1, p), EDGE_FUNCTION(rv1, rv2, p));
-        const float oneOverArea = 1 / EDGE_FUNCTION(rv1, rv2, rv3);
         weight_t weight = {
             .w = wstart, .wy = wstart,
             .dx = simd_make_float3(rv2.y - rv3.y, rv3.y - rv1.y, rv1.y - rv2.y),
             .dy = simd_make_float3(rv3.x - rv2.x, rv1.x - rv3.x, rv2.x - rv1.x) };
         const int32_t bufferStart = ymin * pixel_data->width + xmin;
         pointers_t pointers = {
-            .pbuffer = pixel_data->pixelBuffer + bufferStart,
+            .pbuffer = pixel_data->buffer + bufferStart,
             .dbuffer = depth_buffer.buffer + bufferStart,
             .xDelta = pixel_data->width - xmax + xmin - 1,
         };
@@ -165,7 +165,7 @@ void updateAndRender(const PixelData *pixel_data, const Input *input) {
             for (int x = xmin; x <= xmax; x++) {
                 if (weight.w[0] >= 0 && weight.w[1] >= 0 && weight.w[2] >= 0) {
                     simd_float3 w = oneOverArea * weight.w;
-                    float z = simd_dot(rvz, w);
+                    const float z = simd_dot(rvz, w);
                     if (z > *pointers.dbuffer) {
                         *pointers.dbuffer = z;
                         w /= z;

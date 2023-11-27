@@ -5,7 +5,7 @@
 #include <stdint.h>
 
 typedef struct {
-    uint32_t *pixelBuffer;
+    uint32_t *buffer;
     int32_t width;
     int32_t height;
     int32_t bytesPerPixel;

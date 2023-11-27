@@ -71,8 +71,7 @@ func updateAndRender(_ pixelData: inout PixelData, _ input: inout Input) {
         DepthBuffer.buffer = unsafeBitCast(realloc(DepthBuffer.buffer, depthBufferSize), to: UnsafeMutablePointer<Float>.self)
         Config.factor = Config.near * Float(pixelData.height) / (2 * Config.scale)
     }
-    var infinity = Float.infinity
-    memset_pattern4(DepthBuffer.buffer, &infinity, depthBufferSize)
+    memset(DepthBuffer.buffer, 0, depthBufferSize)
     var backgroundColor = Config.backgroundColor
     memset_pattern4(pixelData.pixelBuffer, &backgroundColor, Int(pixelData.bufferSize))
 
@@ -113,9 +112,10 @@ func updateAndRender(_ pixelData: inout PixelData, _ input: inout Input) {
                 if w >= .zero {
                     w /= area
                     let xpart = x + ypart
-                    let z = 1 / dot(rvz, w)
-                    if z < DepthBuffer.buffer[xpart] {
+                    var z = dot(rvz, w)
+                    if z > DepthBuffer.buffer[xpart] {
                         DepthBuffer.buffer[xpart] = z
+                        z = 1 / z
                         let point = z * (preMul1.point * w[0] + preMul2.point * w[1] + preMul3.point * w[2])
                         let normal = z * (preMul1.normal * w[0] + preMul2.normal * w[1] + preMul3.normal * w[2])
                         let color = z * (preMul1.color * w[0] + preMul2.color * w[1] + preMul3.color * w[2])
