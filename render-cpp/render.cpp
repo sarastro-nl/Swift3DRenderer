@@ -95,10 +95,10 @@ void update_camera(const Input *input) {
         state.mouse.y = input->mouse.y;
     }
     if (changed) {
-        state.camera_matrix = simd_inverse(simd_matrix(simd_make_float4(state.camera_axis.x, 0),
-                                                       simd_make_float4(state.camera_axis.y, 0),
-                                                       simd_make_float4(state.camera_axis.z, 0),
-                                                       simd_make_float4(state.camera_position, 1)));
+        state.camera_matrix = simd_matrix_from_rows(simd_make_float4(state.camera_axis.x, -simd_dot(state.camera_axis.x, state.camera_position)),
+                                                    simd_make_float4(state.camera_axis.y, -simd_dot(state.camera_axis.y, state.camera_position)),
+                                                    simd_make_float4(state.camera_axis.z, -simd_dot(state.camera_axis.z, state.camera_position)),
+                                                    simd_make_float4(0));
     }
 }
 
@@ -119,7 +119,7 @@ void updateAndRender(const PixelData *pixel_data, const Input *input) {
     for (int i = 0; i < world_vertices_count; i++) {
         const simd_float4 v = simd_mul(state.camera_matrix, world_vertices[i]);
         camera_vertices[i] = v.xyz;
-        raster_vertices[i] = simd_make_float3(v.x, -v.y, 0) * config.factor / -v.z + simd_make_float3(size.xy / 2, -v.z);
+        raster_vertices[i] = simd_make_float3(v.x, -v.y, 0) * config.factor / -v.z + simd_make_float3(size / 2, -v.z);
     }
     for (int i = 0; i < world_attributes_count; i++) {
         const vertex_attribute_t a = world_attributes[i];
@@ -133,11 +133,11 @@ void updateAndRender(const PixelData *pixel_data, const Input *input) {
         const simd_float3 rv2 = raster_vertices[vi2];
         const simd_float3 rv3 = raster_vertices[vi3];
         const simd_float3 rvmin = simd_min(simd_min(rv1, rv2), rv3);
-        if (rvmin.x > size[0] || rvmin.y > size[1] || rvmin.z < config.near) { continue; }
+        if (rvmin.x > size[0] || rvmin.y > size[1] || rvmin.z < config.near || isnan(rvmin.z)) { continue; }
         const simd_float3 rvmax = simd_max(simd_max(rv1, rv2), rv3);
         if (rvmax.x < 0 || rvmax.y < 0) { continue; }
         const float area = EDGE_FUNCTION(rv1, rv2, rv3);
-        if (area < 0) { continue; }
+        if (area < 10) { continue; }
         const float oneOverArea = 1 / area;
         const attribute_t a1 = attributes[attribute_indexes[i]];
         const attribute_t a2 = attributes[attribute_indexes[i + 1]];

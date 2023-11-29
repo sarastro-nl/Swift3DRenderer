@@ -61,18 +61,18 @@ private func updateCamera(_ input: inout Input) {
     if input.mouse != State.mouse {
         changed = true
         let z = (State.mouse.x - input.mouse.x) * State.cameraAxis.x + (State.mouse.y - input.mouse.y) * State.cameraAxis.y + (100 / Config.rotationSpeed) * State.cameraAxis.z
-        let nz = normalize(z)
+        let nz = simd_normalize(z)
         let q = simd_quatf(from: State.cameraAxis.z, to: nz)
-        State.cameraAxis.x = normalize(simd_act(q, State.cameraAxis.x))
-        State.cameraAxis.y = normalize(simd_act(q, State.cameraAxis.y))
+        State.cameraAxis.x = simd_normalize(simd_act(q, State.cameraAxis.x))
+        State.cameraAxis.y = simd_normalize(simd_act(q, State.cameraAxis.y))
         State.cameraAxis.z = nz
         State.mouse = input.mouse
     }
     if changed {
-        State.cameraMatrix = simd_inverse(simd_float4x4(simd_float4(State.cameraAxis.x, 0),
-                                                        simd_float4(State.cameraAxis.y, 0),
-                                                        simd_float4(State.cameraAxis.z, 0),
-                                                        simd_float4(State.cameraPosition, 1)))
+        State.cameraMatrix = simd_float4x4(rows: [simd_float4(State.cameraAxis.x, -simd_dot(State.cameraAxis.x, State.cameraPosition)),
+                                                  simd_float4(State.cameraAxis.y, -simd_dot(State.cameraAxis.y, State.cameraPosition)),
+                                                  simd_float4(State.cameraAxis.z, -simd_dot(State.cameraAxis.z, State.cameraPosition)),
+                                                  simd_float4.zero])
     }
 }
 
@@ -93,7 +93,7 @@ func updateAndRender(_ pixelData: inout PixelData, _ input: inout Input) {
         simd_make_float3(simd_mul(State.cameraMatrix, $0))
     }
     let rasterVertices = cameraVertices.map {
-        simd_float3($0.x, -$0.y, 0) * Config.factor / -$0.z + simd_float3(size[0] / 2, size[1] / 2, -$0.z)
+        simd_float3($0.x, -$0.y, 0) * Config.factor / -$0.z + simd_float3(size / 2, -$0.z)
     }
     let attributes = worldAttributes.map {
         Attribute(point: .zero, normal: simd_make_float3(simd_mul(State.cameraMatrix, $0.normal)), color: $0.color)
@@ -102,11 +102,11 @@ func updateAndRender(_ pixelData: inout PixelData, _ input: inout Input) {
         let (vi1, vi2, vi3) = (vertexIndexes[i], vertexIndexes[i + 1], vertexIndexes[i + 2])
         var (rv1, rv2, rv3) = (rasterVertices[vi1], rasterVertices[vi2], rasterVertices[vi3])
         let rvmin = simd_min(simd_min(rv1, rv2), rv3)
-        if rvmin.x > size[0] || rvmin.y > size[1] || rvmin.z < Config.near { continue }
+        if rvmin.x > size[0] || rvmin.y > size[1] || rvmin.z < Config.near || rvmin.z.isNaN { continue }
         let rvmax = simd_max(simd_max(rv1, rv2), rv3)
         if rvmax.x < 0 || rvmax.y < 0 { continue }
         let area = edgeFunction(&rv1, &rv2, &rv3)
-        if area < 0 { continue }
+        if area < 10 { continue }
         let oneOverArea = 1 / area
         let (a1, a2, a3) = (attributes[attributeIndexes[i]], attributes[attributeIndexes[i + 1]], attributes[attributeIndexes[i + 2]])
         let rvz = 1 / simd_float3(rv1.z, rv2.z, rv3.z)
@@ -130,12 +130,12 @@ func updateAndRender(_ pixelData: inout PixelData, _ input: inout Input) {
         for _ in ymin...ymax {
             for _ in xmin...xmax {
                 if Weight.w[0] >= 0 && Weight.w[1] >= 0 && Weight.w[2] >= 0 {
-                    let z = dot(rvz, Weight.w)
+                    let z = simd_dot(rvz, Weight.w)
                     if z > Pointers.dBuffer.pointee {
                         Pointers.dBuffer.pointee = z
                         let w = Weight.w / z
-                        let point = -normalize(preMul1.point * w[0] + preMul2.point * w[1] + preMul3.point * w[2])
-                        let normal = normalize(preMul1.normal * w[0] + preMul2.normal * w[1] + preMul3.normal * w[2])
+                        let point = -simd_normalize(preMul1.point * w[0] + preMul2.point * w[1] + preMul3.point * w[2])
+                        let normal = simd_normalize(preMul1.normal * w[0] + preMul2.normal * w[1] + preMul3.normal * w[2])
                         let color = preMul1.color * w[0] + preMul2.color * w[1] + preMul3.color * w[2]
                         let shadedColor = dot(point, normal) * color
                         Pointers.pBuffer.pointee = RGB(shadedColor[0], shadedColor[1], shadedColor[2])
