@@ -20,4 +20,4 @@ Frameworks/render_dylib.framework/render_dylib: render-cpp/render.cpp render-cpp
 	clang $(CFLAGS) render-cpp/render.cpp -dynamiclib -std=c++11 -o Frameworks/render_dylib.framework/render_dylib
 
 clean:
-	rm -rf main main-cpp data-generator/data-generator data-generator/data.swift data-generator/data.hpp Frameworks
+	rm -rf main main-cpp data-generator/data-generator data-generator/data.swift data-generator/data.hpp data-generator/textures.bin Frameworks

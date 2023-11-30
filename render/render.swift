@@ -42,9 +42,9 @@ private struct Pointers {
     static var xDelta = 0
 }
 
+@inline(__always)
 private func RGB(_ r: Float, _ g: Float, _ b: Float) -> UInt32 {
-    guard r < 256, g < 256, b < 256 else { fatalError() }
-    return (256 * UInt32(r) + UInt32(g)) * 256 + UInt32(b)
+    (UInt32(UInt8(r)) << 8 + UInt32(UInt8(g))) << 8 + UInt32(UInt8(b))
 }
 
 @inline(__always)
@@ -60,12 +60,13 @@ private func updateCamera(_ input: inout Input) {
     }
     if input.mouse != State.mouse {
         changed = true
-        let z = (State.mouse.x - input.mouse.x) * State.cameraAxis.x + (State.mouse.y - input.mouse.y) * State.cameraAxis.y + (100 / Config.rotationSpeed) * State.cameraAxis.z
-        let nz = simd_normalize(z)
-        let q = simd_quatf(from: State.cameraAxis.z, to: nz)
+        let z: simd_float3 = simd_normalize((State.mouse.x - input.mouse.x) * State.cameraAxis.x +
+                                            (State.mouse.y - input.mouse.y) * State.cameraAxis.y +
+                                            (100 / Config.rotationSpeed)    * State.cameraAxis.z)
+        let q = simd_quatf(from: State.cameraAxis.z, to: z)
         State.cameraAxis.x = simd_normalize(simd_act(q, State.cameraAxis.x))
         State.cameraAxis.y = simd_normalize(simd_act(q, State.cameraAxis.y))
-        State.cameraAxis.z = nz
+        State.cameraAxis.z = z
         State.mouse = input.mouse
     }
     if changed {

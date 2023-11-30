@@ -48,12 +48,12 @@ class ViewController: PlatformController {
     let colorSpace = CGColorSpaceCreateDeviceRGB()
     let inputController = InputController()
     var scale: CGFloat = 0
-
+    
 #if CPP
     typealias updateAndRenderFunc = @convention(c) (UnsafePointer<PixelData>, UnsafePointer<Input>) -> Void
     var updateAndRender: updateAndRenderFunc!
 #endif
-
+    
     func RGB(_ r: Float, _ g: Float, _ b: Float) -> UInt32 {
         guard r < 256, g < 256, b < 256 else { fatalError() }
         return (256 * UInt32(r) + UInt32(g)) * 256 + UInt32(b)
@@ -68,8 +68,8 @@ class ViewController: PlatformController {
         scale = screen.backingScaleFactor
         let size = CGSize(width: 960, height: 540)
         let window = NSWindow(contentRect: CGRect(origin: CGPoint(x: (screen.frame.width - size.width) / 2 + 500, y: (screen.frame.height - size.height) / 2), size: size),
-                          styleMask: [.resizable, .miniaturizable, .closable, .titled],
-                          backing: .buffered, defer: false)
+                              styleMask: [.resizable, .miniaturizable, .closable, .titled],
+                              backing: .buffered, defer: false)
         window.minSize = CGSize(width: 200, height: 200)
         window.orderFrontRegardless()
         window.makeFirstResponder(self)
@@ -126,10 +126,10 @@ class ViewController: PlatformController {
         totalTime += CACurrentMediaTime() - mark
 
         let ciImage = CIImage(bitmapData: Data(bytesNoCopy: pixelData.buffer, count: Int(pixelData.bufferSize), deallocator: .none),
-                          bytesPerRow: Int(pixelData.bytesPerPixel * pixelData.width),
-                          size: frameSize,
-                          format: .BGRA8,
-                          colorSpace: colorSpace)
+                              bytesPerRow: Int(pixelData.bytesPerPixel * pixelData.width),
+                              size: frameSize,
+                              format: .BGRA8,
+                              colorSpace: colorSpace)
         
         guard let currentDrawable = metalLayer.nextDrawable(),
               let commandBuffer = commandQueue.makeCommandBuffer() else { return }

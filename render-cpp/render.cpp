@@ -85,12 +85,13 @@ void update_camera(const Input *input) {
     }
     if (input->mouse.x != state.mouse.x || input->mouse.y != state.mouse.y) {
         changed = true;
-        const simd_float3 z = (state.mouse.x - input->mouse.x) * state.camera_axis.x + (state.mouse.y - input->mouse.y) * state.camera_axis.y + (100 / config.rotation_speed) * state.camera_axis.z;
-        const simd_float3 nz = simd_normalize(z);
-        const simd_quatf q = simd_quaternion(state.camera_axis.z, nz);
+        const simd_float3 z = simd_normalize((state.mouse.x - input->mouse.x) * state.camera_axis.x +
+                                             (state.mouse.y - input->mouse.y) * state.camera_axis.y +
+                                             (100 / config.rotation_speed)    * state.camera_axis.z);
+        const simd_quatf q = simd_quaternion(state.camera_axis.z, z);
         state.camera_axis.x = simd_normalize(simd_act(q, state.camera_axis.x));
         state.camera_axis.y = simd_normalize(simd_act(q, state.camera_axis.y));
-        state.camera_axis.z = nz;
+        state.camera_axis.z = z;
         state.mouse.x = input->mouse.x;
         state.mouse.y = input->mouse.y;
     }
