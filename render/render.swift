@@ -20,13 +20,45 @@ private struct Config {
     static var factor: Float = 1
     static let speed: Float = 0.1
     static let rotationSpeed: Float = 0.1
-    static var backgroundColor = RGB(30, 30, 30)
+    static var backgroundColor = RGB(simd_float3(30, 30, 30))
 }
 
-private struct Attribute {
-    var point: simd_float3
+struct Texture {
+    //    let wx: Weight
+    //    let wy: Weight
+    //    let scale: Float
+    let index: Int
+    let mapping: simd_float2
+    
+    init(_ index: Int, _ mapping: simd_float2) {
+        self.index = index
+        self.mapping = mapping
+    }
+}
+
+struct VertexAttribute {
+    let normal: simd_float4
+    let colorAttribute: ColorAttribute
+    
+    init (_ normal: simd_float4, _ colorAttribute: ColorAttribute) {
+        self.normal = normal
+        self.colorAttribute = colorAttribute
+    }
+}
+
+enum ColorAttribute {
+    case color(simd_float3)
+    case texture(Texture)
+}
+
+private struct WeightAttribute {
+    let point: simd_float3
     let normal: simd_float3
-    let color: simd_float3
+    
+    init (_ point: simd_float3, _ normal: simd_float4) {
+        self.point = point
+        self.normal = simd_float3(normal.x, normal.y, normal.z)
+    }
 }
 
 private struct Weight {
@@ -42,14 +74,25 @@ private struct Pointers {
     static var xDelta = 0
 }
 
-@inline(__always)
-private func RGB(_ r: Float, _ g: Float, _ b: Float) -> UInt32 {
-    (UInt32(UInt8(r)) << 8 + UInt32(UInt8(g))) << 8 + UInt32(UInt8(b))
+private struct Textures {
+    static var initialized = false
+    static var buffer: UnsafeMutablePointer<UInt32> = .allocate(capacity: 0)
 }
 
 @inline(__always)
-private func edgeFunction(_ v1: inout simd_float3, _ v2: inout simd_float3, _ v3: inout simd_float3) -> Float {
+private func RGB(_ rgb: simd_float3) -> UInt32 {
+    (UInt32(UInt8(rgb[0])) << 8 + UInt32(UInt8(rgb[1]))) << 8 + UInt32(UInt8(rgb[2]))
+}
+
+@inline(__always)
+private func edgeFunction(_ v1: simd_float3, _ v2: simd_float3, _ v3: simd_float3) -> Float {
     (v3.x - v1.x) * (v1.y - v2.y) + (v3.y - v1.y) * (v2.x - v1.x)
+}
+
+@inline(__always)
+private func getTextureColor(_ buffer: UnsafePointer<UInt32>, _ mapping: simd_float2) -> simd_float3 {
+    let rgb = (buffer + Int(mapping.x) + Int(mapping.y) << 9).pointee
+    return simd_float3(Float(rgb >> 16), Float((rgb >> 8) & 255), Float(rgb & 255))
 }
 
 private func updateCamera(_ input: inout Input) {
@@ -78,6 +121,13 @@ private func updateCamera(_ input: inout Input) {
 }
 
 func updateAndRender(_ pixelData: inout PixelData, _ input: inout Input) {
+    if !Textures.initialized {
+        Textures.initialized = true
+        Textures.buffer = unsafeBitCast(malloc(texturesSize), to: UnsafeMutablePointer<UInt32>.self)
+        guard let reader = InputStream(fileAtPath: Bundle.main.texturePath) else { fatalError() }
+        reader.open()
+        guard reader.read(Textures.buffer, maxLength: texturesSize) > 0 else { fatalError() }
+    }
     updateCamera(&input)
 
     let depthBufferSize = Int(pixelData.width * pixelData.height) * MemoryLayout<Float>.size
@@ -97,29 +147,46 @@ func updateAndRender(_ pixelData: inout PixelData, _ input: inout Input) {
         simd_float3($0.x, -$0.y, 0) * Config.factor / -$0.z + simd_float3(size / 2, -$0.z)
     }
     let attributes = worldAttributes.map {
-        Attribute(point: .zero, normal: simd_make_float3(simd_mul(State.cameraMatrix, $0.normal)), color: $0.color)
+        VertexAttribute(simd_mul(State.cameraMatrix, $0.normal), $0.colorAttribute)
     }
     for i in stride(from: 0, to: vertexIndexes.count, by: 3) {
         let (vi1, vi2, vi3) = (vertexIndexes[i], vertexIndexes[i + 1], vertexIndexes[i + 2])
-        var (rv1, rv2, rv3) = (rasterVertices[vi1], rasterVertices[vi2], rasterVertices[vi3])
+        let (rv1, rv2, rv3) = (rasterVertices[vi1], rasterVertices[vi2], rasterVertices[vi3])
         let rvmin = simd_min(simd_min(rv1, rv2), rv3)
-        if rvmin.x > size[0] || rvmin.y > size[1] || rvmin.z < Config.near || rvmin.z.isNaN { continue }
+        if rvmin.x >= size[0] || rvmin.y >= size[1] || rvmin.z < Config.near || rvmin.z.isNaN { continue }
         let rvmax = simd_max(simd_max(rv1, rv2), rv3)
         if rvmax.x < 0 || rvmax.y < 0 { continue }
-        let area = edgeFunction(&rv1, &rv2, &rv3)
+        let area = edgeFunction(rv1, rv2, rv3)
         if area < 10 { continue }
         let oneOverArea = 1 / area
         let (a1, a2, a3) = (attributes[attributeIndexes[i]], attributes[attributeIndexes[i + 1]], attributes[attributeIndexes[i + 2]])
         let rvz = 1 / simd_float3(rv1.z, rv2.z, rv3.z)
-        let (preMul1, preMul2, preMul3) = (Attribute(point: cameraVertices[vi1] * rvz[0], normal: a1.normal * rvz[0], color: a1.color * rvz[0]),
-                                           Attribute(point: cameraVertices[vi2] * rvz[1], normal: a2.normal * rvz[1], color: a2.color * rvz[1]),
-                                           Attribute(point: cameraVertices[vi3] * rvz[2], normal: a3.normal * rvz[2], color: a3.color * rvz[2]))
+        let wa1 = WeightAttribute(cameraVertices[vi1] * rvz[0], a1.normal * rvz[0])
+        let wa2 = WeightAttribute(cameraVertices[vi2] * rvz[1], a2.normal * rvz[1])
+        let wa3 = WeightAttribute(cameraVertices[vi3] * rvz[2], a3.normal * rvz[2])
+        let getColor: (simd_float3) -> simd_float3
+        if case .color(let c1) = a1.colorAttribute,
+           case .color(let c2) = a2.colorAttribute,
+           case .color(let c3) = a3.colorAttribute {
+            let cc1 = c1 * rvz[0]
+            let cc2 = c2 * rvz[1]
+            let cc3 = c3 * rvz[2]
+            getColor = { w in cc1 * w[0] + cc2 * w[1] + cc3 * w[2] }
+        } else if case .texture(let t1) = a1.colorAttribute,
+                  case .texture(let t2) = a2.colorAttribute,
+                  case .texture(let t3) = a3.colorAttribute {
+            let tt1 = t1.mapping * rvz[0] * 256
+            let tt2 = t2.mapping * rvz[1] * 256
+            let tt3 = t3.mapping * rvz[2] * 256
+            let buffer = Textures.buffer + t1.index << 18
+            getColor = { w in getTextureColor(buffer, tt1 * w[0] + tt2 * w[1] + tt3 * w[2]) }
+        } else { fatalError() }
         let xmin = max(0, Int(rvmin.x))
         let xmax = min(Int(pixelData.width) - 1, Int(rvmax.x))
         let ymin = max(0, Int(rvmin.y))
         let ymax = min(Int(pixelData.height) - 1, Int(rvmax.y))
-        var pStart = simd_float3(Float(xmin) + 0.5, Float(ymin) + 0.5, 0)
-        let wStart = simd_float3(edgeFunction(&rv2, &rv3, &pStart), edgeFunction(&rv3, &rv1, &pStart), edgeFunction(&rv1, &rv2, &pStart)) * oneOverArea
+        let pStart = simd_float3(Float(xmin) + 0.5, Float(ymin) + 0.5, 0)
+        let wStart = simd_float3(edgeFunction(rv2, rv3, pStart), edgeFunction(rv3, rv1, pStart), edgeFunction(rv1, rv2, pStart)) * oneOverArea
         Weight.w = wStart
         Weight.wy = wStart
         Weight.dx = simd_float3(rv2.y - rv3.y, rv3.y - rv1.y, rv1.y - rv2.y) * oneOverArea
@@ -135,11 +202,10 @@ func updateAndRender(_ pixelData: inout PixelData, _ input: inout Input) {
                     if z > Pointers.dBuffer.pointee {
                         Pointers.dBuffer.pointee = z
                         let w = Weight.w / z
-                        let point = -simd_normalize(preMul1.point * w[0] + preMul2.point * w[1] + preMul3.point * w[2])
-                        let normal = simd_normalize(preMul1.normal * w[0] + preMul2.normal * w[1] + preMul3.normal * w[2])
-                        let color = preMul1.color * w[0] + preMul2.color * w[1] + preMul3.color * w[2]
-                        let shadedColor = dot(point, normal) * color
-                        Pointers.pBuffer.pointee = RGB(shadedColor[0], shadedColor[1], shadedColor[2])
+                        let point = -simd_normalize(wa1.point * w[0] + wa2.point * w[1] + wa3.point * w[2])
+                        let normal = simd_normalize(wa1.normal * w[0] + wa2.normal * w[1] + wa3.normal * w[2])
+                        let shadedColor = simd_dot(point, normal) * getColor(w)
+                        Pointers.pBuffer.pointee = RGB(shadedColor)
                     }
                 }
                 Weight.w += Weight.dx

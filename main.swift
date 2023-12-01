@@ -33,6 +33,8 @@ class ViewController: PlatformController {
     let timeInterval = 1.0
     var debug = false
     var totalTime = 0.0
+    var totalPercentage = 0.0
+    var nrOfSessions = 0
     
     let frameTarget = 1 / 60.0
     var frameSize = CGSize.zero
@@ -96,8 +98,7 @@ class ViewController: PlatformController {
         ciContext = CIContext(mtlDevice: device)
 
 #if CPP
-        guard let frameworkPath = Bundle.main.privateFrameworksPath,
-              let handle = dlopen(frameworkPath + "/render_dylib.framework/render_dylib", RTLD_NOW),
+        guard let handle = dlopen(Bundle.main.dylibPath, RTLD_NOW),
               let sym = dlsym(handle, "updateAndRender") else { fatalError() }
         updateAndRender = unsafeBitCast(sym, to: updateAndRenderFunc.self)
 #endif
@@ -146,10 +147,15 @@ class ViewController: PlatformController {
         loopNr += 1
         if debug {
             debug = false
+            let percentage = 100 * totalTime / (frameTarget * Double(loopNr))
+            nrOfSessions += 1
+            totalPercentage += percentage
             print("# loops: \(loopNr)")
-            print(String(format: "%.2f%%", 100 * totalTime / (frameTarget * Double(loopNr))))
+            print(String(format: "%.2f%%", percentage))
+            print(String(format: "average: %.2f%%", totalPercentage / Double(nrOfSessions)))
             totalTime = 0
             loopNr = 0
+                  
         }
     }
     
@@ -195,3 +201,16 @@ _ = NSApplicationMain(CommandLine.argc, CommandLine.unsafeArgv)
 class MetalView: UIView { override class var layerClass: AnyClass { CAMetalLayer.self } }
 UIApplicationMain(CommandLine.argc, CommandLine.unsafeArgv, nil, NSStringFromClass(AppDelegate.self))
 #endif
+extension Bundle {
+    var isCommandLine: Bool { Bundle.main.bundleURL == Bundle.main.resourceURL }
+
+#if CPP
+    var dylibPath: String {
+        isCommandLine ? Bundle.main.bundlePath + "render-cpp/render.dylib" : Bundle.main.privateFrameworksPath! + "render_dylib.framework/render_dylib"
+    }
+#else
+    var texturePath: String {
+        isCommandLine ? Bundle.main.bundlePath + "/data-generator/textures.bin" : Bundle.main.resourcePath! + "/textures.bin"
+    }
+#endif
+}

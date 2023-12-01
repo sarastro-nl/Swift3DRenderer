@@ -5,4 +5,4 @@ data-generator/data.hpp
 data-generator/data-generator
 data-generator/textures.bin
 data-generator/ppms
-Frameworks
+render-cpp/render.dylib
