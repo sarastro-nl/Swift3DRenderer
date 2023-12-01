@@ -356,10 +356,7 @@ try s.write(toFile: swiftPath, atomically: true, encoding: .utf8)
 s = """
 // this file is generated
 #include <simd/simd.h>
-typedef struct {
-const simd_float4 normal;
-const simd_float3 color;
-} vertex_attribute_t;
+#include "../render-cpp/render.hpp"
 const int32_t world_vertices_count = \(vertices.count);
 const int32_t world_attributes_count = \(attributes.count);
 const int32_t world_triangles_count = \(vertexIndexes.count/3);
@@ -381,12 +378,12 @@ s += """
 const vertex_attribute_t world_attributes[\(attributes.count)] = {\n
 """
 for a in attributes {
-    s += ".normal = simd_make_float4(\(a.normal.x), \(a.normal.y), \(a.normal.z), 0), "
+    s += "{ .normal = {\(a.normal.x), \(a.normal.y), \(a.normal.z), 0}, "
     switch a.colorAttribute {
         case .color(let c):
-            s += ".color = simd_float3(\(c[0]), \(c[1]), \(c[2])),\n"
+            s += ".disc = color, .color_attribute = {{\(c[0]), \(c[1]), \(c[2])}}},\n"
         case .texture(let t):
-            s += ".texture = Texture(\(t.index), simd_float1(\(t.mapping.x), \(t.mapping.y))),\n"
+            s += ".disc = texture, .color_attribute = { .texture = {\(t.index), {\(t.mapping.x), \(t.mapping.y)}}}},\n"
     }
 }
 s += """

@@ -36,6 +36,11 @@ struct Texture {
     }
 }
 
+enum ColorAttribute {
+    case color(simd_float3)
+    case texture(Texture)
+}
+
 struct VertexAttribute {
     let normal: simd_float4
     let colorAttribute: ColorAttribute
@@ -44,11 +49,6 @@ struct VertexAttribute {
         self.normal = normal
         self.colorAttribute = colorAttribute
     }
-}
-
-enum ColorAttribute {
-    case color(simd_float3)
-    case texture(Texture)
 }
 
 private struct WeightAttribute {

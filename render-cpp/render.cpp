@@ -1,5 +1,7 @@
 #include <simd/simd.h>
 #include <algorithm>
+#include <functional>
+#include <mach-o/dyld.h>
 #include "render.hpp"
 #include "../data-generator/data.hpp"
 
@@ -20,6 +22,10 @@ typedef struct {
 } depth_buffer_t;
 
 typedef struct {
+    uint32_t *buffer;
+} texture_buffer_t;
+
+typedef struct {
     const float near;
     const float fov;
     const float scale;
@@ -32,8 +38,7 @@ typedef struct {
 typedef struct {
     simd_float3 point;
     simd_float3 normal;
-    simd_float3 color;
-} attribute_t;
+} weighted_attribute_t;
 
 typedef struct {
     simd_float3 w;
@@ -63,6 +68,10 @@ depth_buffer_t depth_buffer = {
     .buffer_size = 0,
 };
 
+texture_buffer_t texture_buffer = {
+    .buffer = NULL,
+};
+
 config_t config = {
     .near = 0.1,
     .fov = M_PI / 5,
@@ -75,7 +84,13 @@ config_t config = {
 
 simd_float3 camera_vertices[world_vertices_count];
 simd_float3 raster_vertices[world_vertices_count];
-attribute_t attributes[world_attributes_count];
+simd_float3 normals[world_attributes_count];
+
+__attribute__((always_inline))
+simd_float3 getTextColor(uint32_t *buffer, simd_float2 mapping) {
+    uint32_t rgb = *(buffer + (int32_t)mapping.x + ((int32_t)mapping.y << 9));
+    return simd_make_float3((float)(rgb >> 16), (float)((rgb >> 8) & 255), (float)(rgb & 255));
+}
 
 void update_camera(const Input *input) {
     bool changed = false;
@@ -105,6 +120,27 @@ void update_camera(const Input *input) {
 
 __attribute__((visibility("default")))
 void updateAndRender(const PixelData *pixel_data, const Input *input) {
+    static bool initialized = false;
+    if (!initialized) {
+        initialized = true;
+        texture_buffer.buffer = (uint32_t *)malloc(textures_size);
+        char path[PATH_MAX];
+        uint32_t size = sizeof(path);
+        _NSGetExecutablePath(path, &size);
+        char *temp = strrchr(path, '/');
+        *temp = 0;
+        temp = strdup(path);
+        strcat(temp, "/../Resources/textures.bin");
+        FILE *fptr;
+        if ((fptr = fopen(temp, "r")) == NULL) {
+            temp = strdup(path);
+            strcat(temp, "/data-generator/textures.bin");
+            if ((fptr = fopen(temp, "r")) == NULL) {
+                exit(99);
+            }
+        }
+        fread(texture_buffer.buffer, textures_size, 1, fptr);
+    }
     update_camera(input);
     
     const int32_t depth_buffer_size = pixel_data->width * pixel_data->height * sizeof(float);
@@ -123,8 +159,7 @@ void updateAndRender(const PixelData *pixel_data, const Input *input) {
         raster_vertices[i] = simd_make_float3(v.x, -v.y, 0) * config.factor / -v.z + simd_make_float3(size / 2, -v.z);
     }
     for (int i = 0; i < world_attributes_count; i++) {
-        const vertex_attribute_t a = world_attributes[i];
-        attributes[i] = { .point = simd_make_float3(0, 0, 0), .normal = simd_mul(state.camera_matrix, a.normal).xyz, .color = a.color };
+        normals[i] = simd_mul(state.camera_matrix, world_attributes[i].normal).xyz;
     }
     for (int i = 0; i < world_triangles_count * 3; i += 3) {
         const int32_t vi1 = vertex_indexes[i];
@@ -134,19 +169,35 @@ void updateAndRender(const PixelData *pixel_data, const Input *input) {
         const simd_float3 rv2 = raster_vertices[vi2];
         const simd_float3 rv3 = raster_vertices[vi3];
         const simd_float3 rvmin = simd_min(simd_min(rv1, rv2), rv3);
-        if (rvmin.x > size[0] || rvmin.y > size[1] || rvmin.z < config.near || isnan(rvmin.z)) { continue; }
+        if (rvmin.x >= size[0] || rvmin.y >= size[1] || rvmin.z < config.near || isnan(rvmin.z)) { continue; }
         const simd_float3 rvmax = simd_max(simd_max(rv1, rv2), rv3);
         if (rvmax.x < 0 || rvmax.y < 0) { continue; }
         const float area = EDGE_FUNCTION(rv1, rv2, rv3);
         if (area < 10) { continue; }
         const float oneOverArea = 1 / area;
-        const attribute_t a1 = attributes[attribute_indexes[i]];
-        const attribute_t a2 = attributes[attribute_indexes[i + 1]];
-        const attribute_t a3 = attributes[attribute_indexes[i + 2]];
+        const int32_t ai1 = attribute_indexes[i];
+        const int32_t ai2 = attribute_indexes[i + 1];
+        const int32_t ai3 = attribute_indexes[i + 2];
+        const vertex_attribute_t a1 = world_attributes[ai1];
+        const vertex_attribute_t a2 = world_attributes[ai2];
+        const vertex_attribute_t a3 = world_attributes[ai3];
         const simd_float3 rvz = 1 / simd_make_float3(rv1.z, rv2.z, rv3.z);
-        const attribute_t preMul1 = { .point = camera_vertices[vi1] * rvz[0], .normal = a1.normal * rvz[0], .color = a1.color * rvz[0] };
-        const attribute_t preMul2 = { .point = camera_vertices[vi2] * rvz[1], .normal = a2.normal * rvz[1], .color = a2.color * rvz[1] };
-        const attribute_t preMul3 = { .point = camera_vertices[vi3] * rvz[2], .normal = a3.normal * rvz[2], .color = a3.color * rvz[2] };
+        const weighted_attribute_t wa1 = { .point = camera_vertices[vi1] * rvz[0], .normal = normals[ai1] * rvz[0] };
+        const weighted_attribute_t wa2 = { .point = camera_vertices[vi2] * rvz[1], .normal = normals[ai2] * rvz[1] };
+        const weighted_attribute_t wa3 = { .point = camera_vertices[vi3] * rvz[2], .normal = normals[ai3] * rvz[2] };
+        std::function<simd_float3(simd_float3)> getColor;
+        if (a1.disc == color) {
+            simd_float3 cc1 = a1.color_attribute.color * rvz[0];
+            simd_float3 cc2 = a2.color_attribute.color * rvz[1];
+            simd_float3 cc3 = a3.color_attribute.color * rvz[2];
+            getColor = [cc1, cc2, cc3] (simd_float3 w) { return cc1 * w[0] + cc2 * w[1] + cc3 * w[2];};
+        } else {
+            simd_float2 tt1 = a1.color_attribute.texture.mapping * rvz[0] * 256;
+            simd_float2 tt2 = a2.color_attribute.texture.mapping * rvz[1] * 256;
+            simd_float2 tt3 = a3.color_attribute.texture.mapping * rvz[2] * 256;
+            uint32_t *buffer = texture_buffer.buffer + ((int32_t)a1.color_attribute.texture.index << 18);
+            getColor = [buffer, tt1, tt2, tt3] (simd_float3 w) { return getTextColor(buffer, tt1 * w[0] + tt2 * w[1] + tt3 * w[2]);};
+        }
         const int32_t xmin = std::max(0, (int)rvmin.x);
         const int32_t xmax = std::min(pixel_data->width - 1, (int)rvmax.x);
         const int32_t ymin = std::max(0, (int)rvmin.y);
@@ -170,10 +221,9 @@ void updateAndRender(const PixelData *pixel_data, const Input *input) {
                     if (z > *pointers.dbuffer) {
                         *pointers.dbuffer = z;
                         const simd_float3 w = weight.w / z;
-                        const simd_float3 point = -simd_normalize(preMul1.point * w[0] + preMul2.point * w[1] + preMul3.point * w[2]);
-                        const simd_float3 normal = simd_normalize(preMul1.normal * w[0] + preMul2.normal * w[1] + preMul3.normal * w[2]);
-                        const simd_float3 color = preMul1.color * w[0] + preMul2.color * w[1] + preMul3.color * w[2];
-                        const simd_float3 shadedColor = simd_dot(point, normal) * color;
+                        const simd_float3 point = -simd_normalize(wa1.point * w[0] + wa2.point * w[1] + wa3.point * w[2]);
+                        const simd_float3 normal = simd_normalize(wa1.normal * w[0] + wa2.normal * w[1] + wa3.normal * w[2]);
+                        const simd_float3 shadedColor = simd_dot(point, normal) * getColor(w);
                         *pointers.pbuffer = RGB(shadedColor[0], shadedColor[1], shadedColor[2]);
                     }
                 }

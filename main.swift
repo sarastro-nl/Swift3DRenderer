@@ -206,7 +206,7 @@ extension Bundle {
 
 #if CPP
     var dylibPath: String {
-        isCommandLine ? Bundle.main.bundlePath + "render-cpp/render.dylib" : Bundle.main.privateFrameworksPath! + "render_dylib.framework/render_dylib"
+        isCommandLine ? Bundle.main.bundlePath + "/render-cpp/render.dylib" : Bundle.main.privateFrameworksPath! + "/render_dylib.framework/render_dylib"
     }
 #else
     var texturePath: String {
