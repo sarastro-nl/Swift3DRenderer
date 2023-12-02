@@ -20,7 +20,7 @@
 		4E5DC8832B0FB16000D6573C /* render.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 4EE3B92A2B0F599100EBEC76 /* render.cpp */; };
 		4EB603FE2B0D32B4008A435B /* main.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4EB603FD2B0D32B4008A435B /* main.swift */; };
 		4ECF4ADB2B1A0BE50054EFAA /* textures.bin in Resources */ = {isa = PBXBuildFile; fileRef = 4ECF4ADA2B1A0BCF0054EFAA /* textures.bin */; };
-		4ECF4ADD2B1A1B780054EFAA /* textures.bin in Resources */ = {isa = PBXBuildFile; fileRef = 4ECF4ADA2B1A0BCF0054EFAA /* textures.bin */; };
+		4ECF4ADE2B1B62210054EFAA /* textures.bin in Resources */ = {isa = PBXBuildFile; fileRef = 4ECF4ADA2B1A0BCF0054EFAA /* textures.bin */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -318,7 +318,6 @@
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				4ECF4ADD2B1A1B780054EFAA /* textures.bin in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -334,6 +333,7 @@
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				4ECF4ADE2B1B62210054EFAA /* textures.bin in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

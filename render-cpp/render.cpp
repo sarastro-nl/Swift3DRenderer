@@ -1,7 +1,7 @@
 #include <simd/simd.h>
-#include <algorithm>
 #include <functional>
-#include <mach-o/dyld.h>
+#include <sys/syslimits.h>
+#include <dlfcn.h>
 #include "render.hpp"
 #include "../data-generator/data.hpp"
 
@@ -124,19 +124,20 @@ void updateAndRender(const PixelData *pixel_data, const Input *input) {
     if (!initialized) {
         initialized = true;
         texture_buffer.buffer = (uint32_t *)malloc(textures_size);
+        Dl_info info;
+        dladdr((const void *)updateAndRender, &info);
         char path[PATH_MAX];
-        uint32_t size = sizeof(path);
-        _NSGetExecutablePath(path, &size);
-        char *temp = strrchr(path, '/');
-        *temp = 0;
-        temp = strdup(path);
-        strcat(temp, "/../Resources/textures.bin");
+        strcpy(path, info.dli_fname);
+        char *p = strrchr(path, '/');
         FILE *fptr;
-        if ((fptr = fopen(temp, "r")) == NULL) {
-            temp = strdup(path);
-            strcat(temp, "/data-generator/textures.bin");
-            if ((fptr = fopen(temp, "r")) == NULL) {
-                exit(99);
+        strcpy(p, "/textures.bin"); // iOS
+        if ((fptr = fopen(path, "r")) == NULL) {
+            strcpy(p, "/Resources/textures.bin"); // macOS
+            if ((fptr = fopen(path, "r")) == NULL) {
+                strcpy(p, "/../data-generator/textures.bin"); // cmd line
+                if ((fptr = fopen(path, "r")) == NULL) {
+                    exit(666);
+                }
             }
         }
         fread(texture_buffer.buffer, textures_size, 1, fptr);

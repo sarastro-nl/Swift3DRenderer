@@ -202,7 +202,7 @@ class MetalView: UIView { override class var layerClass: AnyClass { CAMetalLayer
 UIApplicationMain(CommandLine.argc, CommandLine.unsafeArgv, nil, NSStringFromClass(AppDelegate.self))
 #endif
 extension Bundle {
-    var isCommandLine: Bool { Bundle.main.bundleURL == Bundle.main.resourceURL }
+    var isCommandLine: Bool { FileManager.default.fileExists(atPath: Bundle.main.bundlePath + "/data-generator") }
 
 #if CPP
     var dylibPath: String {
