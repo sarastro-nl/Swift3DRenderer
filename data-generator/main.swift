@@ -54,20 +54,21 @@ extension FileManager {
 }
 
 struct Weight {
-    let a: simd_float3
-    let b: simd_float3
+    var a: simd_float3
+    var b: simd_float3
 }
 
 struct Texture {
-//    let wx: Weight
-//    let wy: Weight
-//    let scale: Float
     let index: Int
     let mapping: simd_float2
-    
-    init(_ index: Int, _ mapping: simd_float2) {
+    let wx: Weight
+    let wy: Weight
+
+    init(_ index: Int, _ mapping: simd_float2, _ wx: Weight, _ wy: Weight) {
         self.index = index
         self.mapping = mapping
+        self.wx = wx
+        self.wy = wy
     }
 }
 
@@ -99,8 +100,49 @@ func normal(_ v: [simd_float3], _ a: Int, _ b: Int, _ c: Int) -> simd_float3 {
     (simd_cross(v[c] - v[a], v[b] - v[a]))
 }
 
-func texture(_ index: Int, _ x: Float, _ y: Float) -> ColorAttribute {
-    .texture(Texture(index, simd_float2(x, y)))
+func edgeFunction(_ v1: simd_float2, _ v2: simd_float2, _ v3: simd_float2) -> Float {
+    (v3.x - v1.x) * (v1.y - v2.y) + (v3.y - v1.y) * (v2.x - v1.x)
+}
+
+func midY(_ a: simd_float2, _ b: simd_float2, _ c: simd_float2) -> simd_float2 {
+    simd_float2(a.x, (c.y - b.y) * (a.x - b.x) / (c.x - b.x) + b.y)
+}
+
+func midX(_ a: simd_float2, _ b: simd_float2, _ c: simd_float2) -> simd_float2 {
+    simd_float2((c.x - b.x) * (a.y - b.y) / (c.y - b.y) + b.x, a.y)
+}
+
+func textureWeight(_ a: simd_float2, _ b: simd_float2, _ c: simd_float2) -> (Weight, Weight) {
+    let area = edgeFunction(a, b, c)
+    let fromX: simd_float2
+    let toX: simd_float2
+    if b.y < a.y && a.y < c.y || c.y < a.y && a.y < b.y {
+        fromX = a
+        toX = midX(a, b, c)
+    } else if a.y < b.y && b.y < c.y || c.y < b.y && b.y < a.y {
+        fromX = b
+        toX = midX(b, a, c)
+    } else {
+        fromX = c
+        toX = midX(c, a, b)
+    }
+    let xWeight = Weight(a: simd_float3(edgeFunction(b, c, fromX), edgeFunction(c, a, fromX), edgeFunction(a, b, fromX)) / area,
+                         b: simd_float3(edgeFunction(b, c, toX), edgeFunction(c, a, toX), edgeFunction(a, b, toX)) / area)
+    let fromY: simd_float2
+    let toY: simd_float2
+    if b.x < a.x && a.x < c.x || c.x < a.x && a.x < b.x {
+        fromY = a
+        toY = midY(a, b, c)
+    } else if a.x < b.x && b.x < c.x || c.x < b.x && b.x < a.x {
+        fromY = b
+        toY = midY(b, a, c)
+    } else {
+        fromY = c
+        toY = midY(c, a, b)
+    }
+    let yWeight = Weight(a: simd_float3(edgeFunction(b, c, fromY), edgeFunction(c, a, fromY), edgeFunction(a, b, fromY)) / area,
+                         b: simd_float3(edgeFunction(b, c, toY), edgeFunction(c, a, toY), edgeFunction(a, b, toY)) / area)
+    return (xWeight, yWeight)
 }
 
 func addTriangle() {
@@ -125,13 +167,17 @@ func addTriangle() {
         0, 1, 2,
     ])
     let j = attributes.count
+    let t1 = simd_float2(0, sqrt(3)/2)
+    let t2 = simd_float2(0.5, 0)
+    let t3 = simd_float2(1, sqrt(3)/2)
+    let (wx, wy) = textureWeight(t1, t2, t3)
     attributes.append(contentsOf: [
 //        VertexAttribute(normal(v, 0, 1, 2), .color(red)),
 //        VertexAttribute(normal(v, 0, 1, 2), .color(orange)),
 //        VertexAttribute(normal(v, 0, 1, 2), .color(blue)),
-        VertexAttribute(normal(v, 0, 1, 2), texture(0, 0, sqrt(3)/2)),
-        VertexAttribute(normal(v, 0, 1, 2), texture(0, 0.5, 0)),
-        VertexAttribute(normal(v, 0, 1, 2), texture(0, 1, sqrt(3)/2)),
+        VertexAttribute(normal(v, 0, 1, 2), .texture(Texture(0, t1, wx, wy))),
+        VertexAttribute(normal(v, 0, 1, 2), .texture(Texture(0, t2, wx, wy))),
+        VertexAttribute(normal(v, 0, 1, 2), .texture(Texture(0, t3, wx, wy))),
     ])
     attributeIndexes.append(contentsOf: (j..<(j + 3)))
 }
@@ -337,7 +383,7 @@ for a in attributes {
         case .color(let c):
             s += ".color(simd_float3(\(c[0]), \(c[1]), \(c[2])))),\n"
         case .texture(let t):
-            s += ".texture(Texture(\(t.index), simd_float2(\(t.mapping.x), \(t.mapping.y))))),\n"
+            s += ".texture(Texture(\(t.index), simd_float2(\(t.mapping.x), \(t.mapping.y)), TextureWeight(simd_float3(\(t.wx.a.x), \(t.wx.a.y), \(t.wx.a.z)), simd_float3(\(t.wx.b.x), \(t.wx.b.y), \(t.wx.b.z))), TextureWeight(simd_float3(\(t.wy.a.x), \(t.wy.a.y), \(t.wy.a.z)), simd_float3(\(t.wy.b.x), \(t.wy.b.y), \(t.wy.b.z)))))),\n"
     }
 }
 s += """

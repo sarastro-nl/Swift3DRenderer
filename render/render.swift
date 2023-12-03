@@ -23,16 +23,27 @@ private struct Config {
     static var backgroundColor = RGB(simd_float3(30, 30, 30))
 }
 
+struct TextureWeight {
+    var a: simd_float3
+    var b: simd_float3
+
+    init(_ a: simd_float3, _ b: simd_float3) {
+        self.a = a
+        self.b = b
+    }
+}
+
 struct Texture {
-    //    let wx: Weight
-    //    let wy: Weight
-    //    let scale: Float
     let index: Int
     let mapping: simd_float2
-    
-    init(_ index: Int, _ mapping: simd_float2) {
+    let wx: TextureWeight
+    let wy: TextureWeight
+
+    init(_ index: Int, _ mapping: simd_float2, _ wx: TextureWeight, _ wy: TextureWeight) {
         self.index = index
         self.mapping = mapping
+        self.wx = wx
+        self.wy = wy
     }
 }
 
@@ -90,8 +101,9 @@ private func edgeFunction(_ v1: simd_float3, _ v2: simd_float3, _ v3: simd_float
 }
 
 @inline(__always)
-private func getTextureColor(_ buffer: UnsafePointer<UInt32>, _ mapping: simd_float2) -> simd_float3 {
-    let rgb = (buffer + Int(mapping.x) + Int(mapping.y) << 9).pointee
+private func getTextureColor(_ buffer: UnsafePointer<UInt32>, _ mapping: simd_float2, _ offset: simd_float2, _ size: simd_float2) -> simd_float3 {
+    let m = fmod(mapping + size, size) + offset
+    let rgb = (buffer + Int(m.x) + Int(m.y) << 9).pointee
     return simd_float3(Float(rgb >> 16), Float((rgb >> 8) & 255), Float(rgb & 255))
 }
 
@@ -175,11 +187,35 @@ func updateAndRender(_ pixelData: inout PixelData, _ input: inout Input) {
         } else if case .texture(let t1) = a1.colorAttribute,
                   case .texture(let t2) = a2.colorAttribute,
                   case .texture(let t3) = a3.colorAttribute {
-            let tt1 = t1.mapping * rvz[0] * 256
-            let tt2 = t2.mapping * rvz[1] * 256
-            let tt3 = t3.mapping * rvz[2] * 256
+            let fromX = rv1 * t1.wx.a[0] + rv2 * t1.wx.a[1] + rv3 * t1.wx.a[2]
+            let toX   = rv1 * t1.wx.b[0] + rv2 * t1.wx.b[1] + rv3 * t1.wx.b[2]
+            let fromY = rv1 * t1.wy.a[0] + rv2 * t1.wy.a[1] + rv3 * t1.wy.a[2]
+            let toY   = rv1 * t1.wy.b[0] + rv2 * t1.wy.b[1] + rv3 * t1.wy.b[2]
+            let xDiff = Int(sqrt(pow(fromX.x-toX.x, 2) + pow(fromX.y-toX.y, 2)) * 2)
+            let yDiff = Int(sqrt(pow(fromY.x-toY.x, 2) + pow(fromY.y-toY.y, 2)) * 2)
+            var xScale = 256
+            var xOffset = 0
+            while xScale > 2 && xDiff <= xScale {
+                xOffset += xScale
+                xScale >>= 1
+            }
+            var yScale = 256
+            var yOffset = 0
+            while yScale > 2 && yDiff <= yScale {
+                yOffset += yScale
+                yScale >>= 1
+            }
+//            xScale = 256
+//            yScale = 256
+//            xOffset = 0
+//            yOffset = 0
+            let size = simd_float2(Float(xScale), Float(yScale))
+            let offset = simd_float2(Float(xOffset), Float(yOffset))
+            let tt1 = t1.mapping * size * rvz.x
+            let tt2 = t2.mapping * size * rvz.y
+            let tt3 = t3.mapping * size * rvz.z
             let buffer = Textures.buffer + t1.index << 18
-            getColor = { w in getTextureColor(buffer, tt1 * w[0] + tt2 * w[1] + tt3 * w[2]) }
+            getColor = { w in getTextureColor(buffer, tt1 * w[0] + tt2 * w[1] + tt3 * w[2], offset, size) }
         } else { fatalError() }
         let xmin = max(0, Int(rvmin.x))
         let xmax = min(Int(pixelData.width) - 1, Int(rvmax.x))
@@ -204,7 +240,8 @@ func updateAndRender(_ pixelData: inout PixelData, _ input: inout Input) {
                         let w = Weight.w / z
                         let point = -simd_normalize(wa1.point * w[0] + wa2.point * w[1] + wa3.point * w[2])
                         let normal = simd_normalize(wa1.normal * w[0] + wa2.normal * w[1] + wa3.normal * w[2])
-                        let shadedColor = simd_dot(point, normal) * getColor(w)
+//                        let shadedColor = simd_dot(point, normal) * getColor(w)
+                        let shadedColor = getColor(w)
                         Pointers.pBuffer.pointee = RGB(shadedColor)
                     }
                 }

@@ -123,13 +123,12 @@ void updateAndRender(const PixelData *pixel_data, const Input *input) {
     static bool initialized = false;
     if (!initialized) {
         initialized = true;
-        texture_buffer.buffer = (uint32_t *)malloc(textures_size);
         Dl_info info;
         dladdr((const void *)updateAndRender, &info);
         char path[PATH_MAX];
         strcpy(path, info.dli_fname);
-        char *p = strrchr(path, '/');
         FILE *fptr;
+        char *p = strrchr(path, '/');
         strcpy(p, "/textures.bin"); // iOS
         if ((fptr = fopen(path, "r")) == NULL) {
             strcpy(p, "/Resources/textures.bin"); // macOS
@@ -140,8 +139,10 @@ void updateAndRender(const PixelData *pixel_data, const Input *input) {
                 }
             }
         }
+        texture_buffer.buffer = (uint32_t *)malloc(textures_size);
         fread(texture_buffer.buffer, textures_size, 1, fptr);
     }
+    
     update_camera(input);
     
     const int32_t depth_buffer_size = pixel_data->width * pixel_data->height * sizeof(float);
