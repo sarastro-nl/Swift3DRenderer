@@ -9,23 +9,36 @@ extern "C" {
 
 #include <string.h>
 
-typedef struct {
+#define RGB(r, g, b) (((((uint8_t)(r) << 8) + (uint8_t)(g)) << 8) + (uint8_t)(b))
+#define EDGE_FUNCTION(a, b, c) ((c.x - a.x) * (a.y - b.y) + (c.y - a.y) * (b.x - a.x))
+
+struct {
     simd_float3 camera_position;
     struct { simd_float3 x; simd_float3 y; simd_float3 z; } camera_axis;
     simd_float4x4 camera_matrix;
     simd_float2 mouse;
-} state_t;
+} state = {
+    .camera_position = simd_make_float3(0, 0, 0),
+    .camera_axis = { .x = simd_make_float3(1, 0, 0), .y = simd_make_float3(0, 1, 0), .z = simd_make_float3(0, 0, 1)},
+    .camera_matrix = matrix_identity_float4x4,
+    .mouse = simd_make_float2(0, 0),
+};
 
-typedef struct {
+struct {
     float *buffer;
     int32_t buffer_size;
-} depth_buffer_t;
+} depth_buffer = {
+    .buffer = NULL,
+    .buffer_size = 0,
+};
 
-typedef struct {
+struct {
     uint32_t *buffer;
-} texture_buffer_t;
+} texture_buffer = {
+    .buffer = NULL,
+};
 
-typedef struct {
+struct {
     const float near;
     const float fov;
     const float scale;
@@ -33,7 +46,15 @@ typedef struct {
     const float speed;
     const float rotation_speed;
     const uint32_t background_color;
-} config_t;
+} config = {
+    .near = 0.1,
+    .fov = M_PI / 5,
+    .scale = config.near * tan(config.fov / 2),
+    .factor = 1,
+    .speed = 0.1,
+    .rotation_speed = 0.1,
+    .background_color = RGB(30, 30, 30),
+};
 
 typedef struct {
     simd_float3 point;
@@ -53,41 +74,14 @@ typedef struct {
     const int xDelta;
 } pointers_t;
 
-#define RGB(r, g, b) (((((uint8_t)(r) << 8) + (uint8_t)(g)) << 8) + (uint8_t)(b))
-#define EDGE_FUNCTION(a, b, c) ((c.x - a.x) * (a.y - b.y) + (c.y - a.y) * (b.x - a.x))
-
-state_t state = {
-    .camera_position = simd_make_float3(0, 0, 0),
-    .camera_axis = { .x = simd_make_float3(1, 0, 0), .y = simd_make_float3(0, 1, 0), .z = simd_make_float3(0, 0, 1)},
-    .camera_matrix = matrix_identity_float4x4,
-    .mouse = simd_make_float2(0, 0),
-};
-
-depth_buffer_t depth_buffer = {
-    .buffer = NULL,
-    .buffer_size = 0,
-};
-
-texture_buffer_t texture_buffer = {
-    .buffer = NULL,
-};
-
-config_t config = {
-    .near = 0.1,
-    .fov = M_PI / 5,
-    .scale = config.near * tan(config.fov / 2),
-    .factor = 1,
-    .speed = 0.1,
-    .rotation_speed = 0.1,
-    .background_color = RGB(30, 30, 30),
-};
-
 simd_float3 camera_vertices[world_vertices_count];
 simd_float3 raster_vertices[world_vertices_count];
 simd_float3 normals[world_attributes_count];
 
 __attribute__((always_inline))
-simd_float3 getTextColor(uint32_t *buffer, simd_float2 mapping) {
+simd_float3 getTextColor(uint32_t *buffer, simd_float2 mapping, simd_float2 size, simd_float2 offset) {
+    mapping.x = fmod(mapping.x, size.x) + offset.x;
+    mapping.y = fmod(mapping.y, size.y) + offset.y;
     uint32_t rgb = *(buffer + (int32_t)mapping.x + ((int32_t)mapping.y << 9));
     return simd_make_float3((float)(rgb >> 16), (float)((rgb >> 8) & 255), (float)(rgb & 255));
 }
@@ -158,7 +152,7 @@ void updateAndRender(const PixelData *pixel_data, const Input *input) {
     for (int i = 0; i < world_vertices_count; i++) {
         const simd_float4 v = simd_mul(state.camera_matrix, world_vertices[i]);
         camera_vertices[i] = v.xyz;
-        raster_vertices[i] = simd_make_float3(v.x, -v.y, 0) * config.factor / -v.z + simd_make_float3(size / 2, -v.z);
+        raster_vertices[i] = v.z < -config.near ? simd_make_float3(v.x, -v.y, 0) * config.factor / -v.z + simd_make_float3(size / 2, -v.z) : simd_make_float3(0, 0, 0);
     }
     for (int i = 0; i < world_attributes_count; i++) {
         normals[i] = simd_mul(state.camera_matrix, world_attributes[i].normal).xyz;
@@ -171,7 +165,7 @@ void updateAndRender(const PixelData *pixel_data, const Input *input) {
         const simd_float3 rv2 = raster_vertices[vi2];
         const simd_float3 rv3 = raster_vertices[vi3];
         const simd_float3 rvmin = simd_min(simd_min(rv1, rv2), rv3);
-        if (rvmin.x >= size[0] || rvmin.y >= size[1] || rvmin.z < config.near || isnan(rvmin.z)) { continue; }
+        if (rvmin.x >= size[0] || rvmin.y >= size[1] || rvmin.z < config.near) { continue; }
         const simd_float3 rvmax = simd_max(simd_max(rv1, rv2), rv3);
         if (rvmax.x < 0 || rvmax.y < 0) { continue; }
         const float area = EDGE_FUNCTION(rv1, rv2, rv3);
@@ -198,7 +192,9 @@ void updateAndRender(const PixelData *pixel_data, const Input *input) {
             simd_float2 tt2 = a2.color_attribute.texture.mapping * rvz[1] * 256;
             simd_float2 tt3 = a3.color_attribute.texture.mapping * rvz[2] * 256;
             uint32_t *buffer = texture_buffer.buffer + ((int32_t)a1.color_attribute.texture.index << 18);
-            getColor = [buffer, tt1, tt2, tt3] (simd_float3 w) { return getTextColor(buffer, tt1 * w[0] + tt2 * w[1] + tt3 * w[2]);};
+            simd_float2 size = simd_make_float2(256, 256);
+            simd_float2 offset = simd_make_float2(0, 0);
+            getColor = [buffer, tt1, tt2, tt3, size, offset] (simd_float3 w) { return getTextColor(buffer, tt1 * w[0] + tt2 * w[1] + tt3 * w[2], size, offset);};
         }
         const int32_t xmin = std::max(0, (int)rvmin.x);
         const int32_t xmax = std::min(pixel_data->width - 1, (int)rvmax.x);
@@ -226,6 +222,7 @@ void updateAndRender(const PixelData *pixel_data, const Input *input) {
                         const simd_float3 point = -simd_normalize(wa1.point * w[0] + wa2.point * w[1] + wa3.point * w[2]);
                         const simd_float3 normal = simd_normalize(wa1.normal * w[0] + wa2.normal * w[1] + wa3.normal * w[2]);
                         const simd_float3 shadedColor = simd_dot(point, normal) * getColor(w);
+//                        const simd_float3 shadedColor = getColor(w);
                         *pointers.pbuffer = RGB(shadedColor[0], shadedColor[1], shadedColor[2]);
                     }
                 }

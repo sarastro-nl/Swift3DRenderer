@@ -23,27 +23,13 @@ private struct Config {
     static var backgroundColor = RGB(simd_float3(30, 30, 30))
 }
 
-struct TextureWeight {
-    var a: simd_float3
-    var b: simd_float3
-
-    init(_ a: simd_float3, _ b: simd_float3) {
-        self.a = a
-        self.b = b
-    }
-}
-
 struct Texture {
     let index: Int
     let mapping: simd_float2
-    let wx: TextureWeight
-    let wy: TextureWeight
 
-    init(_ index: Int, _ mapping: simd_float2, _ wx: TextureWeight, _ wy: TextureWeight) {
+    init(_ index: Int, _ mapping: simd_float2) {
         self.index = index
         self.mapping = mapping
-        self.wx = wx
-        self.wy = wy
     }
 }
 
@@ -101,9 +87,21 @@ private func edgeFunction(_ v1: simd_float3, _ v2: simd_float3, _ v3: simd_float
 }
 
 @inline(__always)
-private func getTextureColor(_ buffer: UnsafePointer<UInt32>, _ mapping: simd_float2, _ offset: simd_float2, _ size: simd_float2) -> simd_float3 {
-    let m = fmod(mapping + size, size) + offset
-    let rgb = (buffer + Int(m.x) + Int(m.y) << 9).pointee
+private func nextPowerOfTwo(_ f: Float) -> Int {
+    var i = Int(f) - 1
+    i |= i >> 1
+    i |= i >> 2
+    i |= i >> 4
+    return i + 1
+}
+
+@inline(__always)
+private func getTextureColor(_ buffer: UnsafePointer<UInt32>, _ mapping: simd_float2, _ level: simd_float2) -> simd_float3 {
+    let levelX = nextPowerOfTwo(max(min(level.x, 256), 1))
+    let levelY = nextPowerOfTwo(max(min(level.y, 256), 1))
+    let x = Int(fmodf(mapping.x, 1) * Float(levelX)) + 511 & ~(2 * levelX - 1)
+    let y = Int(fmodf(mapping.y, 1) * Float(levelY)) + 511 & ~(2 * levelY - 1)
+    let rgb = (buffer + x + y << 9).pointee
     return simd_float3(Float(rgb >> 16), Float((rgb >> 8) & 255), Float(rgb & 255))
 }
 
@@ -151,12 +149,13 @@ func updateAndRender(_ pixelData: inout PixelData, _ input: inout Input) {
     memset(DepthBuffer.buffer, 0, depthBufferSize)
     memset_pattern4(pixelData.buffer, &Config.backgroundColor, Int(pixelData.bufferSize))
 
-    let size = simd_float2(Float(pixelData.width), Float(pixelData.height))
+    let screenSize = simd_float2(Float(pixelData.width), Float(pixelData.height))
     let cameraVertices = worldVertices.map {
         simd_make_float3(simd_mul(State.cameraMatrix, $0))
     }
     let rasterVertices = cameraVertices.map {
-        simd_float3($0.x, -$0.y, 0) * Config.factor / -$0.z + simd_float3(size / 2, -$0.z)
+        guard $0.z < -Config.near else { return simd_float3.zero }
+        return simd_float3($0.x, -$0.y, 0) * Config.factor / -$0.z + simd_float3(screenSize / 2, -$0.z)
     }
     let attributes = worldAttributes.map {
         VertexAttribute(simd_mul(State.cameraMatrix, $0.normal), $0.colorAttribute)
@@ -165,7 +164,7 @@ func updateAndRender(_ pixelData: inout PixelData, _ input: inout Input) {
         let (vi1, vi2, vi3) = (vertexIndexes[i], vertexIndexes[i + 1], vertexIndexes[i + 2])
         let (rv1, rv2, rv3) = (rasterVertices[vi1], rasterVertices[vi2], rasterVertices[vi3])
         let rvmin = simd_min(simd_min(rv1, rv2), rv3)
-        if rvmin.x >= size[0] || rvmin.y >= size[1] || rvmin.z < Config.near || rvmin.z.isNaN { continue }
+        if rvmin.x >= screenSize[0] || rvmin.y >= screenSize[1] || rvmin.z < Config.near { continue }
         let rvmax = simd_max(simd_max(rv1, rv2), rv3)
         if rvmax.x < 0 || rvmax.y < 0 { continue }
         let area = edgeFunction(rv1, rv2, rv3)
@@ -173,50 +172,6 @@ func updateAndRender(_ pixelData: inout PixelData, _ input: inout Input) {
         let oneOverArea = 1 / area
         let (a1, a2, a3) = (attributes[attributeIndexes[i]], attributes[attributeIndexes[i + 1]], attributes[attributeIndexes[i + 2]])
         let rvz = 1 / simd_float3(rv1.z, rv2.z, rv3.z)
-        let wa1 = WeightAttribute(cameraVertices[vi1] * rvz[0], a1.normal * rvz[0])
-        let wa2 = WeightAttribute(cameraVertices[vi2] * rvz[1], a2.normal * rvz[1])
-        let wa3 = WeightAttribute(cameraVertices[vi3] * rvz[2], a3.normal * rvz[2])
-        let getColor: (simd_float3) -> simd_float3
-        if case .color(let c1) = a1.colorAttribute,
-           case .color(let c2) = a2.colorAttribute,
-           case .color(let c3) = a3.colorAttribute {
-            let cc1 = c1 * rvz[0]
-            let cc2 = c2 * rvz[1]
-            let cc3 = c3 * rvz[2]
-            getColor = { w in cc1 * w[0] + cc2 * w[1] + cc3 * w[2] }
-        } else if case .texture(let t1) = a1.colorAttribute,
-                  case .texture(let t2) = a2.colorAttribute,
-                  case .texture(let t3) = a3.colorAttribute {
-            let fromX = rv1 * t1.wx.a[0] + rv2 * t1.wx.a[1] + rv3 * t1.wx.a[2]
-            let toX   = rv1 * t1.wx.b[0] + rv2 * t1.wx.b[1] + rv3 * t1.wx.b[2]
-            let fromY = rv1 * t1.wy.a[0] + rv2 * t1.wy.a[1] + rv3 * t1.wy.a[2]
-            let toY   = rv1 * t1.wy.b[0] + rv2 * t1.wy.b[1] + rv3 * t1.wy.b[2]
-            let xDiff = Int(sqrt(pow(fromX.x-toX.x, 2) + pow(fromX.y-toX.y, 2)) * 2)
-            let yDiff = Int(sqrt(pow(fromY.x-toY.x, 2) + pow(fromY.y-toY.y, 2)) * 2)
-            var xScale = 256
-            var xOffset = 0
-            while xScale > 2 && xDiff <= xScale {
-                xOffset += xScale
-                xScale >>= 1
-            }
-            var yScale = 256
-            var yOffset = 0
-            while yScale > 2 && yDiff <= yScale {
-                yOffset += yScale
-                yScale >>= 1
-            }
-//            xScale = 256
-//            yScale = 256
-//            xOffset = 0
-//            yOffset = 0
-            let size = simd_float2(Float(xScale), Float(yScale))
-            let offset = simd_float2(Float(xOffset), Float(yOffset))
-            let tt1 = t1.mapping * size * rvz.x
-            let tt2 = t2.mapping * size * rvz.y
-            let tt3 = t3.mapping * size * rvz.z
-            let buffer = Textures.buffer + t1.index << 18
-            getColor = { w in getTextureColor(buffer, tt1 * w[0] + tt2 * w[1] + tt3 * w[2], offset, size) }
-        } else { fatalError() }
         let xmin = max(0, Int(rvmin.x))
         let xmax = min(Int(pixelData.width) - 1, Int(rvmax.x))
         let ymin = max(0, Int(rvmin.y))
@@ -231,6 +186,30 @@ func updateAndRender(_ pixelData: inout PixelData, _ input: inout Input) {
         Pointers.pBuffer = pixelData.buffer + bufferStart
         Pointers.dBuffer = DepthBuffer.buffer + bufferStart
         Pointers.xDelta = Int(pixelData.width) - xmax + xmin - 1
+        let wa1 = WeightAttribute(cameraVertices[vi1] * rvz[0], a1.normal * rvz[0])
+        let wa2 = WeightAttribute(cameraVertices[vi2] * rvz[1], a2.normal * rvz[1])
+        let wa3 = WeightAttribute(cameraVertices[vi3] * rvz[2], a3.normal * rvz[2])
+        let getColor: (simd_float3, Float) -> simd_float3
+        if case .color(let c1) = a1.colorAttribute,
+           case .color(let c2) = a2.colorAttribute,
+           case .color(let c3) = a3.colorAttribute {
+            let cc1 = c1 * rvz[0]
+            let cc2 = c2 * rvz[1]
+            let cc3 = c3 * rvz[2]
+            getColor = { w, _ in cc1 * w[0] + cc2 * w[1] + cc3 * w[2] }
+        } else if case .texture(let t1) = a1.colorAttribute,
+                  case .texture(let t2) = a2.colorAttribute,
+                  case .texture(let t3) = a3.colorAttribute {
+            let buffer = Textures.buffer + t1.index << 18
+            let tm1 = t1.mapping * rvz[0]
+            let tm2 = t2.mapping * rvz[1]
+            let tm3 = t3.mapping * rvz[2]
+            let tpp = (tm1 * simd_float2(Weight.dx[0], Weight.dy[0]) +
+                       tm2 * simd_float2(Weight.dx[1], Weight.dy[1]) +
+                       tm3 * simd_float2(Weight.dx[2], Weight.dy[2]))
+            getColor = { w, z in getTextureColor(buffer, tm1 * w[0] + tm2 * w[1] + tm3 * w[2], z / tpp) }
+        } else { fatalError() }
+        
         for _ in ymin...ymax {
             for _ in xmin...xmax {
                 if Weight.w[0] >= 0 && Weight.w[1] >= 0 && Weight.w[2] >= 0 {
@@ -238,10 +217,10 @@ func updateAndRender(_ pixelData: inout PixelData, _ input: inout Input) {
                     if z > Pointers.dBuffer.pointee {
                         Pointers.dBuffer.pointee = z
                         let w = Weight.w / z
-                        let point = -simd_normalize(wa1.point * w[0] + wa2.point * w[1] + wa3.point * w[2])
-                        let normal = simd_normalize(wa1.normal * w[0] + wa2.normal * w[1] + wa3.normal * w[2])
+//                        let point = -simd_normalize(wa1.point * w[0] + wa2.point * w[1] + wa3.point * w[2])
+//                        let normal = simd_normalize(wa1.normal * w[0] + wa2.normal * w[1] + wa3.normal * w[2])
 //                        let shadedColor = simd_dot(point, normal) * getColor(w)
-                        let shadedColor = getColor(w)
+                        let shadedColor = getColor(w, z)
                         Pointers.pBuffer.pointee = RGB(shadedColor)
                     }
                 }
