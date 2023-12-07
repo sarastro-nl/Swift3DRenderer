@@ -170,8 +170,6 @@ func updateAndRender(_ pixelData: inout PixelData, _ input: inout Input) {
         let area = edgeFunction(rv1, rv2, rv3)
         if area < 10 { continue }
         let oneOverArea = 1 / area
-        let (a1, a2, a3) = (attributes[attributeIndexes[i]], attributes[attributeIndexes[i + 1]], attributes[attributeIndexes[i + 2]])
-        let rvz = 1 / simd_float3(rv1.z, rv2.z, rv3.z)
         let xmin = max(0, Int(rvmin.x))
         let xmax = min(Int(pixelData.width) - 1, Int(rvmax.x))
         let ymin = max(0, Int(rvmin.y))
@@ -186,6 +184,9 @@ func updateAndRender(_ pixelData: inout PixelData, _ input: inout Input) {
         Pointers.pBuffer = pixelData.buffer + bufferStart
         Pointers.dBuffer = DepthBuffer.buffer + bufferStart
         Pointers.xDelta = Int(pixelData.width) - xmax + xmin - 1
+        
+        let (a1, a2, a3) = (attributes[attributeIndexes[i]], attributes[attributeIndexes[i + 1]], attributes[attributeIndexes[i + 2]])
+        let rvz = 1 / simd_float3(rv1.z, rv2.z, rv3.z)
         let wa1 = WeightAttribute(cameraVertices[vi1] * rvz[0], a1.normal * rvz[0])
         let wa2 = WeightAttribute(cameraVertices[vi2] * rvz[1], a2.normal * rvz[1])
         let wa3 = WeightAttribute(cameraVertices[vi3] * rvz[2], a3.normal * rvz[2])

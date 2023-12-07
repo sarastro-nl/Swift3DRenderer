@@ -79,10 +79,21 @@ simd_float3 raster_vertices[world_vertices_count];
 simd_float3 normals[world_attributes_count];
 
 __attribute__((always_inline))
-simd_float3 getTextColor(uint32_t *buffer, simd_float2 mapping, simd_float2 size, simd_float2 offset) {
-    mapping.x = fmod(mapping.x, size.x) + offset.x;
-    mapping.y = fmod(mapping.y, size.y) + offset.y;
-    uint32_t rgb = *(buffer + (int32_t)mapping.x + ((int32_t)mapping.y << 9));
+uint32_t nextPowerOfTwo(float f) {
+    uint32_t i = (uint32_t)f - 1;
+    i |= i >> 1;
+    i |= i >> 2;
+    i |= i >> 4;
+    return i + 1;
+}
+
+__attribute__((always_inline))
+simd_float3 getTextColor(uint32_t *buffer, simd_float2 mapping, simd_float2 level) {
+    uint32_t levelX = nextPowerOfTwo(fmax(fmin(level.x, 256), 1));
+    uint32_t levelY = nextPowerOfTwo(fmax(fmin(level.y, 256), 1));
+    uint32_t x = (uint32_t)(fmodf(mapping.x, 1) * levelX) + (511 & ~(2 * levelX - 1));
+    uint32_t y = (uint32_t)(fmodf(mapping.y, 1) * levelY) + (511 & ~(2 * levelY - 1));
+    uint32_t rgb = *(buffer + x + (y << 9));
     return simd_make_float3((float)(rgb >> 16), (float)((rgb >> 8) & 255), (float)(rgb & 255));
 }
 
@@ -171,31 +182,6 @@ void updateAndRender(const PixelData *pixel_data, const Input *input) {
         const float area = EDGE_FUNCTION(rv1, rv2, rv3);
         if (area < 10) { continue; }
         const float oneOverArea = 1 / area;
-        const int32_t ai1 = attribute_indexes[i];
-        const int32_t ai2 = attribute_indexes[i + 1];
-        const int32_t ai3 = attribute_indexes[i + 2];
-        const vertex_attribute_t a1 = world_attributes[ai1];
-        const vertex_attribute_t a2 = world_attributes[ai2];
-        const vertex_attribute_t a3 = world_attributes[ai3];
-        const simd_float3 rvz = 1 / simd_make_float3(rv1.z, rv2.z, rv3.z);
-        const weighted_attribute_t wa1 = { .point = camera_vertices[vi1] * rvz[0], .normal = normals[ai1] * rvz[0] };
-        const weighted_attribute_t wa2 = { .point = camera_vertices[vi2] * rvz[1], .normal = normals[ai2] * rvz[1] };
-        const weighted_attribute_t wa3 = { .point = camera_vertices[vi3] * rvz[2], .normal = normals[ai3] * rvz[2] };
-        std::function<simd_float3(simd_float3)> getColor;
-        if (a1.disc == color) {
-            simd_float3 cc1 = a1.color_attribute.color * rvz[0];
-            simd_float3 cc2 = a2.color_attribute.color * rvz[1];
-            simd_float3 cc3 = a3.color_attribute.color * rvz[2];
-            getColor = [cc1, cc2, cc3] (simd_float3 w) { return cc1 * w[0] + cc2 * w[1] + cc3 * w[2];};
-        } else {
-            simd_float2 tt1 = a1.color_attribute.texture.mapping * rvz[0] * 256;
-            simd_float2 tt2 = a2.color_attribute.texture.mapping * rvz[1] * 256;
-            simd_float2 tt3 = a3.color_attribute.texture.mapping * rvz[2] * 256;
-            uint32_t *buffer = texture_buffer.buffer + ((int32_t)a1.color_attribute.texture.index << 18);
-            simd_float2 size = simd_make_float2(256, 256);
-            simd_float2 offset = simd_make_float2(0, 0);
-            getColor = [buffer, tt1, tt2, tt3, size, offset] (simd_float3 w) { return getTextColor(buffer, tt1 * w[0] + tt2 * w[1] + tt3 * w[2], size, offset);};
-        }
         const int32_t xmin = std::max(0, (int)rvmin.x);
         const int32_t xmax = std::min(pixel_data->width - 1, (int)rvmax.x);
         const int32_t ymin = std::max(0, (int)rvmin.y);
@@ -212,6 +198,34 @@ void updateAndRender(const PixelData *pixel_data, const Input *input) {
             .dbuffer = depth_buffer.buffer + bufferStart,
             .xDelta = pixel_data->width - xmax + xmin - 1,
         };
+        
+        const int32_t ai1 = attribute_indexes[i];
+        const int32_t ai2 = attribute_indexes[i + 1];
+        const int32_t ai3 = attribute_indexes[i + 2];
+        const vertex_attribute_t a1 = world_attributes[ai1];
+        const vertex_attribute_t a2 = world_attributes[ai2];
+        const vertex_attribute_t a3 = world_attributes[ai3];
+        const simd_float3 rvz = 1 / simd_make_float3(rv1.z, rv2.z, rv3.z);
+        const weighted_attribute_t wa1 = { .point = camera_vertices[vi1] * rvz[0], .normal = normals[ai1] * rvz[0] };
+        const weighted_attribute_t wa2 = { .point = camera_vertices[vi2] * rvz[1], .normal = normals[ai2] * rvz[1] };
+        const weighted_attribute_t wa3 = { .point = camera_vertices[vi3] * rvz[2], .normal = normals[ai3] * rvz[2] };
+        std::function<simd_float3(simd_float3, float)> getColor;
+        if (a1.disc == color) {
+            const simd_float3 cc1 = a1.color_attribute.color * rvz[0];
+            const simd_float3 cc2 = a2.color_attribute.color * rvz[1];
+            const simd_float3 cc3 = a3.color_attribute.color * rvz[2];
+            getColor = [cc1, cc2, cc3] (const simd_float3 w, const float z) { return cc1 * w[0] + cc2 * w[1] + cc3 * w[2];};
+        } else {
+            uint32_t *buffer = texture_buffer.buffer + ((int32_t)a1.color_attribute.texture.index << 18);
+            const simd_float2 tm1 = a1.color_attribute.texture.mapping * rvz[0];
+            const simd_float2 tm2 = a2.color_attribute.texture.mapping * rvz[1];
+            const simd_float2 tm3 = a3.color_attribute.texture.mapping * rvz[2];
+            const simd_float2 tpp = (tm1 * simd_make_float2(weight.dx[0], weight.dy[0]) +
+                                     tm2 * simd_make_float2(weight.dx[1], weight.dy[1]) +
+                                     tm3 * simd_make_float2(weight.dx[2], weight.dy[2]));
+            getColor = [buffer, tm1, tm2, tm3, tpp] (const simd_float3 w, const float z) { return getTextColor(buffer, tm1 * w[0] + tm2 * w[1] + tm3 * w[2], z / tpp);};
+        }
+
         for (int y = ymin; y <= ymax; y++) {
             for (int x = xmin; x <= xmax; x++) {
                 if (weight.w[0] >= 0 && weight.w[1] >= 0 && weight.w[2] >= 0) {
@@ -221,8 +235,8 @@ void updateAndRender(const PixelData *pixel_data, const Input *input) {
                         const simd_float3 w = weight.w / z;
                         const simd_float3 point = -simd_normalize(wa1.point * w[0] + wa2.point * w[1] + wa3.point * w[2]);
                         const simd_float3 normal = simd_normalize(wa1.normal * w[0] + wa2.normal * w[1] + wa3.normal * w[2]);
-                        const simd_float3 shadedColor = simd_dot(point, normal) * getColor(w);
-//                        const simd_float3 shadedColor = getColor(w);
+//                        const simd_float3 shadedColor = simd_dot(point, normal) * getColor(w, z);
+                        const simd_float3 shadedColor = getColor(w, z);
                         *pointers.pbuffer = RGB(shadedColor[0], shadedColor[1], shadedColor[2]);
                     }
                 }
