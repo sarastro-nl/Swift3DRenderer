@@ -232,24 +232,20 @@ func updateAndRender(_ pixelData: inout PixelData, _ input: inout Input) {
         let p2 = Scene.cameraVertices[vi2] * rvz[1]
         let p3 = Scene.cameraVertices[vi3] * rvz[2]
         let getColor: (simd_float3, Float) -> simd_float3
-        if case .color(let c1) = a1.colorAttribute,
-           case .color(let c2) = a2.colorAttribute,
-           case .color(let c3) = a3.colorAttribute {
+        if case .color(let c1) = a1.colorAttribute, case .color(let c2) = a2.colorAttribute, case .color(let c3) = a3.colorAttribute {
             let cc1 = c1 * rvz[0]
             let cc2 = c2 * rvz[1]
             let cc3 = c3 * rvz[2]
             getColor = { w, _ in cc1 * w[0] + cc2 * w[1] + cc3 * w[2] }
-        } else if case .texture(let t1) = a1.colorAttribute,
-                  case .texture(let t2) = a2.colorAttribute,
-                  case .texture(let t3) = a3.colorAttribute {
+        } else if case .texture(let t1) = a1.colorAttribute, case .texture(let t2) = a2.colorAttribute, case .texture(let t3) = a3.colorAttribute {
             let buffer = Textures.buffer + t1.index << 18
             let tm1 = t1.uv * rvz[0]
             let tm2 = t2.uv * rvz[1]
             let tm3 = t3.uv * rvz[2]
-            let tpp = (tm1 * simd_float2(Weight.dx[0], Weight.dy[0]) +
-                       tm2 * simd_float2(Weight.dx[1], Weight.dy[1]) +
-                       tm3 * simd_float2(Weight.dx[2], Weight.dy[2]))
-            getColor = { w, z in getTextureColor(buffer, tm1 * w[0] + tm2 * w[1] + tm3 * w[2], z / tpp) }
+            let tpp: simd_float2 = 1 / simd_abs(tm1 * simd_float2(Weight.dx[0], Weight.dy[0]) +
+                                                tm2 * simd_float2(Weight.dx[1], Weight.dy[1]) +
+                                                tm3 * simd_float2(Weight.dx[2], Weight.dy[2]))
+            getColor = { w, z in getTextureColor(buffer, tm1 * w[0] + tm2 * w[1] + tm3 * w[2], tpp * z) }
         } else { fatalError() }
         
         for _ in ymin...ymax {

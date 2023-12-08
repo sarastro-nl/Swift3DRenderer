@@ -105,7 +105,7 @@ func addTriangle() {
 }
 
 func addRegularFloor() {
-    let a = 33
+    let a = 3
     for z in 0...a {
         for x in 0...a {
             var extra: Float = 0
