@@ -351,8 +351,8 @@ func addIcosahedron() {
     attributeIndexes.append(contentsOf: (j..<(j + 60)))
 }
 
-addRegularFloor()
-//for _ in (0..<1) { addTriangle() }
+//addRegularFloor()
+for _ in (0..<1) { addTriangle() }
 //for _ in (0..<2) { addTetrahedron() }
 //for _ in (0..<2) { addIcosahedron() }
 
@@ -376,7 +376,7 @@ writer.write(Array(repeating: 0, count: MemoryLayout<Int>.stride * attributeInde
 
 let contents = try FileManager.default.contentsOfDirectory(atPath: directory + "/ppms").sorted()
 let files = contents.map { directory + "/ppms/" + $0 }
-writer.write([files.count << 20, 0].withUnsafeBytes { Data($0) })
+writer.write([files.count << 18, 0].withUnsafeBytes { Data($0) })
 let ppmHeaderSize = 15
 var dataOut: [UInt32] = []
 for file in files {
