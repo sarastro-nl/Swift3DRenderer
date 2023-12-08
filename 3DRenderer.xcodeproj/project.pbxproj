@@ -14,13 +14,12 @@
 		4E2F0CF52B121020009BD65B /* render_dylib.framework in Embed Frameworks */ = {isa = PBXBuildFile; fileRef = 4E5DC8772B0FB12D00D6573C /* render_dylib.framework */; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
 		4E3D63B02B120B7F003F490F /* input.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4EB604112B0E6C98008A435B /* input.swift */; };
 		4E3D63B12B120B7F003F490F /* main.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4EB582882B0D049B00049821 /* main.swift */; };
-		4E3D63B32B120B7F003F490F /* data.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4EB604072B0D3664008A435B /* data.swift */; };
 		4E3D63B42B120B7F003F490F /* render.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4EB603F12B0D308A008A435B /* render.swift */; };
 		4E3D63B52B120BAD003F490F /* GameController.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 4EB604152B0E6DF2008A435B /* GameController.framework */; platformFilter = ios; };
 		4E5DC8832B0FB16000D6573C /* render.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 4EE3B92A2B0F599100EBEC76 /* render.cpp */; };
+		4E5F0F5F2B21F4A900D2AEBA /* data.bin in Resources */ = {isa = PBXBuildFile; fileRef = 4E5F0F5E2B21F4A900D2AEBA /* data.bin */; };
+		4E5F0F602B21F4A900D2AEBA /* data.bin in Resources */ = {isa = PBXBuildFile; fileRef = 4E5F0F5E2B21F4A900D2AEBA /* data.bin */; };
 		4EB603FE2B0D32B4008A435B /* main.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4EB603FD2B0D32B4008A435B /* main.swift */; };
-		4ECF4ADB2B1A0BE50054EFAA /* textures.bin in Resources */ = {isa = PBXBuildFile; fileRef = 4ECF4ADA2B1A0BCF0054EFAA /* textures.bin */; };
-		4ECF4ADE2B1B62210054EFAA /* textures.bin in Resources */ = {isa = PBXBuildFile; fileRef = 4ECF4ADA2B1A0BCF0054EFAA /* textures.bin */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -74,17 +73,15 @@
 		4E2F0CF32B120FEF009BD65B /* main cpp.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = "main cpp.app"; sourceTree = BUILT_PRODUCTS_DIR; };
 		4E3D639F2B12082A003F490F /* main.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = main.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		4E5DC8772B0FB12D00D6573C /* render_dylib.framework */ = {isa = PBXFileReference; explicitFileType = wrapper.framework; includeInIndex = 0; path = render_dylib.framework; sourceTree = BUILT_PRODUCTS_DIR; };
+		4E5F0F5E2B21F4A900D2AEBA /* data.bin */ = {isa = PBXFileReference; lastKnownFileType = archive.macbinary; path = data.bin; sourceTree = "<group>"; };
 		4EB582882B0D049B00049821 /* main.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = main.swift; sourceTree = "<group>"; };
 		4EB603F12B0D308A008A435B /* render.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = render.swift; sourceTree = "<group>"; };
 		4EB603FB2B0D32B4008A435B /* data-generator */ = {isa = PBXFileReference; explicitFileType = "compiled.mach-o.executable"; includeInIndex = 0; path = "data-generator"; sourceTree = BUILT_PRODUCTS_DIR; };
 		4EB603FD2B0D32B4008A435B /* main.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = main.swift; sourceTree = "<group>"; };
-		4EB604072B0D3664008A435B /* data.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = data.swift; sourceTree = "<group>"; };
 		4EB604112B0E6C98008A435B /* input.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = input.swift; sourceTree = "<group>"; };
 		4EB604152B0E6DF2008A435B /* GameController.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = GameController.framework; path = Platforms/iPhoneOS.platform/Developer/SDKs/iPhoneOS17.0.sdk/System/Library/Frameworks/GameController.framework; sourceTree = DEVELOPER_DIR; };
-		4ECF4ADA2B1A0BCF0054EFAA /* textures.bin */ = {isa = PBXFileReference; lastKnownFileType = archive.macbinary; path = textures.bin; sourceTree = "<group>"; };
 		4EE3B92A2B0F599100EBEC76 /* render.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; path = render.cpp; sourceTree = "<group>"; };
 		4EE3B92B2B0F599100EBEC76 /* render.hpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.h; path = render.hpp; sourceTree = "<group>"; };
-		4EE3B92E2B0F59B500EBEC76 /* data.hpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.h; path = data.hpp; sourceTree = "<group>"; };
 		4EE3B93F2B0F5DE900EBEC76 /* bridging-header.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = "bridging-header.h"; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
@@ -159,9 +156,7 @@
 		4EB603FC2B0D32B4008A435B /* data-generator */ = {
 			isa = PBXGroup;
 			children = (
-				4ECF4ADA2B1A0BCF0054EFAA /* textures.bin */,
-				4EE3B92E2B0F59B500EBEC76 /* data.hpp */,
-				4EB604072B0D3664008A435B /* data.swift */,
+				4E5F0F5E2B21F4A900D2AEBA /* data.bin */,
 				4EB603FD2B0D32B4008A435B /* main.swift */,
 			);
 			path = "data-generator";
@@ -325,7 +320,7 @@
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				4ECF4ADB2B1A0BE50054EFAA /* textures.bin in Resources */,
+				4E5F0F5F2B21F4A900D2AEBA /* data.bin in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -333,7 +328,7 @@
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				4ECF4ADE2B1B62210054EFAA /* textures.bin in Resources */,
+				4E5F0F602B21F4A900D2AEBA /* data.bin in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -354,9 +349,7 @@
 			outputFileListPaths = (
 			);
 			outputPaths = (
-				"${SRCROOT}/data-generator/data.swift",
-				"${SRCROOT}/data-generator/data.hpp",
-				"${SRCROOT}/data-generator/textures.bin",
+				"${SRCROOT}/data-generator/data.bin",
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 			shellPath = /bin/sh;
@@ -381,7 +374,6 @@
 			files = (
 				4E3D63B02B120B7F003F490F /* input.swift in Sources */,
 				4E3D63B12B120B7F003F490F /* main.swift in Sources */,
-				4E3D63B32B120B7F003F490F /* data.swift in Sources */,
 				4E3D63B42B120B7F003F490F /* render.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;

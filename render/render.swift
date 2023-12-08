@@ -8,6 +8,23 @@ private struct State {
     static var mouse = simd_float2.zero
 }
 
+private struct Scene {
+    static var vertices: UnsafeMutablePointer<simd_float4> = .allocate(capacity: 0)
+    static var vertexCount: Int = 0
+    static var vertexIndices: UnsafeMutablePointer<Int> = .allocate(capacity: 0)
+    static var vertexIndicesCount: Int = 0
+    static var attributes: UnsafeMutablePointer<VertexAttribute> = .allocate(capacity: 0)
+    static var attributesCount: Int = 0
+    static var attributeIndices: UnsafeMutablePointer<Int> = .allocate(capacity: 0)
+    static var attributeIndicesCount: Int = 0
+    
+    static var cameraVertices: UnsafeMutablePointer<simd_float3> = .allocate(capacity: 0)
+    static var cameraVertexCount: Int = 0
+    static var rasterVertices: UnsafeMutablePointer<simd_float3> = .allocate(capacity: 0)
+    static var rasterVertexCount: Int = 0
+    static var workingAttributes: UnsafeMutablePointer<VertexAttribute> = .allocate(capacity: 0)
+}
+
 private struct DepthBuffer {
     static var buffer: UnsafeMutablePointer<Float> = .allocate(capacity: 0)
     static var bufferSize: Int = 0
@@ -21,16 +38,12 @@ private struct Config {
     static let speed: Float = 0.1
     static let rotationSpeed: Float = 0.1
     static var backgroundColor = RGB(simd_float3(30, 30, 30))
+    static var initialized = false
 }
 
 struct Texture {
     let index: Int
-    let mapping: simd_float2
-
-    init(_ index: Int, _ mapping: simd_float2) {
-        self.index = index
-        self.mapping = mapping
-    }
+    let uv: simd_float2
 }
 
 enum ColorAttribute {
@@ -39,23 +52,8 @@ enum ColorAttribute {
 }
 
 struct VertexAttribute {
-    let normal: simd_float4
+    var normal: simd_float4
     let colorAttribute: ColorAttribute
-    
-    init (_ normal: simd_float4, _ colorAttribute: ColorAttribute) {
-        self.normal = normal
-        self.colorAttribute = colorAttribute
-    }
-}
-
-private struct WeightAttribute {
-    let point: simd_float3
-    let normal: simd_float3
-    
-    init (_ point: simd_float3, _ normal: simd_float4) {
-        self.point = point
-        self.normal = simd_float3(normal.x, normal.y, normal.z)
-    }
 }
 
 private struct Weight {
@@ -72,8 +70,8 @@ private struct Pointers {
 }
 
 private struct Textures {
-    static var initialized = false
     static var buffer: UnsafeMutablePointer<UInt32> = .allocate(capacity: 0)
+    static var bufferSize: Int = 0
 }
 
 @inline(__always)
@@ -96,11 +94,11 @@ private func nextPowerOfTwo(_ f: Float) -> Int {
 }
 
 @inline(__always)
-private func getTextureColor(_ buffer: UnsafePointer<UInt32>, _ mapping: simd_float2, _ level: simd_float2) -> simd_float3 {
+private func getTextureColor(_ buffer: UnsafePointer<UInt32>, _ uv: simd_float2, _ level: simd_float2) -> simd_float3 {
     let levelX = nextPowerOfTwo(max(min(level.x, 256), 1))
     let levelY = nextPowerOfTwo(max(min(level.y, 256), 1))
-    let x = Int(fmodf(mapping.x, 1) * Float(levelX)) + 511 & ~(2 * levelX - 1)
-    let y = Int(fmodf(mapping.y, 1) * Float(levelY)) + 511 & ~(2 * levelY - 1)
+    let x = Int(fmodf(uv.x, 1) * Float(levelX)) + 511 & ~(2 * levelX - 1)
+    let y = Int(fmodf(uv.y, 1) * Float(levelY)) + 511 & ~(2 * levelY - 1)
     let rgb = (buffer + x + y << 9).pointee
     return simd_float3(Float(rgb >> 16), Float((rgb >> 8) & 255), Float(rgb & 255))
 }
@@ -113,12 +111,12 @@ private func updateCamera(_ input: inout Input) {
     }
     if input.mouse != State.mouse {
         changed = true
-        let z: simd_float3 = simd_normalize((State.mouse.x - input.mouse.x) * State.cameraAxis.x +
-                                            (State.mouse.y - input.mouse.y) * State.cameraAxis.y +
-                                            (100 / Config.rotationSpeed)    * State.cameraAxis.z)
+        let z: simd_float3 = simd_fast_normalize((State.mouse.x - input.mouse.x) * State.cameraAxis.x +
+                                                 (State.mouse.y - input.mouse.y) * State.cameraAxis.y +
+                                                 (100 / Config.rotationSpeed)    * State.cameraAxis.z)
         let q = simd_quatf(from: State.cameraAxis.z, to: z)
-        State.cameraAxis.x = simd_normalize(simd_act(q, State.cameraAxis.x))
-        State.cameraAxis.y = simd_normalize(simd_act(q, State.cameraAxis.y))
+        State.cameraAxis.x = simd_fast_normalize(simd_act(q, State.cameraAxis.x))
+        State.cameraAxis.y = simd_fast_normalize(simd_act(q, State.cameraAxis.y))
         State.cameraAxis.z = z
         State.mouse = input.mouse
     }
@@ -130,13 +128,47 @@ private func updateCamera(_ input: inout Input) {
     }
 }
 
+func initialize() {
+    guard let reader = InputStream(fileAtPath: Bundle.main.dataPath) else { fatalError() }
+    reader.open()
+    defer { reader.close() }
+
+    let count: UnsafeMutablePointer<Int> = .allocate(capacity: 2)
+    reader.read(count, maxLength: 16)
+    Scene.vertexCount = count.pointee
+    Scene.vertices = .allocate(capacity: Scene.vertexCount)
+    reader.read(Scene.vertices, maxLength: count.pointee * MemoryLayout<simd_float4>.stride)
+    Scene.cameraVertices = .allocate(capacity: count.pointee)
+    Scene.rasterVertices = .allocate(capacity: count.pointee)
+
+    reader.read(count, maxLength: 16)
+    Scene.vertexIndicesCount = count.pointee
+    var alignedCount = Scene.vertexIndicesCount + (Scene.vertexIndicesCount % 2 == 0 ? 0 : 1)
+    Scene.vertexIndices = .allocate(capacity: alignedCount)
+    reader.read(Scene.vertexIndices, maxLength: alignedCount * MemoryLayout<Int>.stride)
+    
+    reader.read(count, maxLength: 16)
+    Scene.attributesCount = count.pointee
+    Scene.attributes = .allocate(capacity: Scene.attributesCount)
+    reader.read(Scene.attributes, maxLength: Scene.attributesCount * MemoryLayout<VertexAttribute>.stride)
+    Scene.workingAttributes = .allocate(capacity: Scene.attributesCount)
+    
+    reader.read(count, maxLength: 16)
+    Scene.attributeIndicesCount = count.pointee
+    alignedCount = Scene.attributeIndicesCount + (Scene.attributeIndicesCount % 2 == 0 ? 0 : 1)
+    Scene.attributeIndices = .allocate(capacity: alignedCount)
+    reader.read(Scene.attributeIndices, maxLength: alignedCount * MemoryLayout<Int>.stride)
+
+    reader.read(count, maxLength: 16)
+    Textures.bufferSize = count.pointee
+    Textures.buffer = .allocate(capacity: Textures.bufferSize)
+    reader.read(Textures.buffer, maxLength: Textures.bufferSize)
+}
+
 func updateAndRender(_ pixelData: inout PixelData, _ input: inout Input) {
-    if !Textures.initialized {
-        Textures.initialized = true
-        Textures.buffer = unsafeBitCast(malloc(texturesSize), to: UnsafeMutablePointer<UInt32>.self)
-        guard let reader = InputStream(fileAtPath: Bundle.main.texturePath) else { fatalError() }
-        reader.open()
-        guard reader.read(Textures.buffer, maxLength: texturesSize) > 0 else { fatalError() }
+    if !Config.initialized {
+        Config.initialized = true
+        initialize()
     }
     updateCamera(&input)
 
@@ -150,19 +182,23 @@ func updateAndRender(_ pixelData: inout PixelData, _ input: inout Input) {
     memset_pattern4(pixelData.buffer, &Config.backgroundColor, Int(pixelData.bufferSize))
 
     let screenSize = simd_float2(Float(pixelData.width), Float(pixelData.height))
-    let cameraVertices = worldVertices.map {
-        simd_make_float3(simd_mul(State.cameraMatrix, $0))
+    for (i, vertex) in UnsafeBufferPointer(start: Scene.vertices, count: Scene.vertexCount).enumerated() {
+        Scene.cameraVertices[i] = simd_make_float3(simd_mul(State.cameraMatrix, vertex))
     }
-    let rasterVertices = cameraVertices.map {
-        guard $0.z < -Config.near else { return simd_float3.zero }
-        return simd_float3($0.x, -$0.y, 0) * Config.factor / -$0.z + simd_float3(screenSize / 2, -$0.z)
+    for (i, vertex) in UnsafeBufferPointer(start: Scene.cameraVertices, count: Scene.vertexCount).enumerated() {
+        if vertex.z > -Config.near {
+            Scene.rasterVertices[i] = simd_float3.zero
+        } else {
+            Scene.rasterVertices[i] = simd_float3(vertex.x, -vertex.y, 0) * Config.factor / -vertex.z + simd_float3(screenSize / 2, -vertex.z)
+        }
     }
-    let attributes = worldAttributes.map {
-        VertexAttribute(simd_mul(State.cameraMatrix, $0.normal), $0.colorAttribute)
+    memcpy(Scene.workingAttributes, Scene.attributes, Scene.attributesCount * MemoryLayout<VertexAttribute>.stride)
+    for (i, attribute) in UnsafeBufferPointer(start: Scene.attributes, count: Scene.attributesCount).enumerated() {
+        Scene.workingAttributes[i].normal = simd_mul(State.cameraMatrix, attribute.normal)
     }
-    for i in stride(from: 0, to: vertexIndexes.count, by: 3) {
-        let (vi1, vi2, vi3) = (vertexIndexes[i], vertexIndexes[i + 1], vertexIndexes[i + 2])
-        let (rv1, rv2, rv3) = (rasterVertices[vi1], rasterVertices[vi2], rasterVertices[vi3])
+    for i in stride(from: 0, to: Scene.vertexIndicesCount, by: 3) {
+        let (vi1, vi2, vi3) = (Scene.vertexIndices[i], Scene.vertexIndices[i + 1], Scene.vertexIndices[i + 2])
+        let (rv1, rv2, rv3) = (Scene.rasterVertices[vi1], Scene.rasterVertices[vi2], Scene.rasterVertices[vi3])
         let rvmin = simd_min(simd_min(rv1, rv2), rv3)
         if rvmin.x >= screenSize[0] || rvmin.y >= screenSize[1] || rvmin.z < Config.near { continue }
         let rvmax = simd_max(simd_max(rv1, rv2), rv3)
@@ -185,11 +221,16 @@ func updateAndRender(_ pixelData: inout PixelData, _ input: inout Input) {
         Pointers.dBuffer = DepthBuffer.buffer + bufferStart
         Pointers.xDelta = Int(pixelData.width) - xmax + xmin - 1
         
-        let (a1, a2, a3) = (attributes[attributeIndexes[i]], attributes[attributeIndexes[i + 1]], attributes[attributeIndexes[i + 2]])
+        let (a1, a2, a3) = (Scene.workingAttributes[Scene.attributeIndices[i]],
+                            Scene.workingAttributes[Scene.attributeIndices[i + 1]],
+                            Scene.workingAttributes[Scene.attributeIndices[i + 2]])
         let rvz = 1 / simd_float3(rv1.z, rv2.z, rv3.z)
-        let wa1 = WeightAttribute(cameraVertices[vi1] * rvz[0], a1.normal * rvz[0])
-        let wa2 = WeightAttribute(cameraVertices[vi2] * rvz[1], a2.normal * rvz[1])
-        let wa3 = WeightAttribute(cameraVertices[vi3] * rvz[2], a3.normal * rvz[2])
+        let n1 = simd_make_float3(a1.normal * rvz[0])
+        let n2 = simd_make_float3(a2.normal * rvz[1])
+        let n3 = simd_make_float3(a3.normal * rvz[2])
+        let p1 = Scene.cameraVertices[vi1] * rvz[0]
+        let p2 = Scene.cameraVertices[vi2] * rvz[1]
+        let p3 = Scene.cameraVertices[vi3] * rvz[2]
         let getColor: (simd_float3, Float) -> simd_float3
         if case .color(let c1) = a1.colorAttribute,
            case .color(let c2) = a2.colorAttribute,
@@ -202,9 +243,9 @@ func updateAndRender(_ pixelData: inout PixelData, _ input: inout Input) {
                   case .texture(let t2) = a2.colorAttribute,
                   case .texture(let t3) = a3.colorAttribute {
             let buffer = Textures.buffer + t1.index << 18
-            let tm1 = t1.mapping * rvz[0]
-            let tm2 = t2.mapping * rvz[1]
-            let tm3 = t3.mapping * rvz[2]
+            let tm1 = t1.uv * rvz[0]
+            let tm2 = t2.uv * rvz[1]
+            let tm3 = t3.uv * rvz[2]
             let tpp = (tm1 * simd_float2(Weight.dx[0], Weight.dy[0]) +
                        tm2 * simd_float2(Weight.dx[1], Weight.dy[1]) +
                        tm3 * simd_float2(Weight.dx[2], Weight.dy[2]))
@@ -218,10 +259,11 @@ func updateAndRender(_ pixelData: inout PixelData, _ input: inout Input) {
                     if z > Pointers.dBuffer.pointee {
                         Pointers.dBuffer.pointee = z
                         let w = Weight.w / z
-//                        let point = -simd_normalize(wa1.point * w[0] + wa2.point * w[1] + wa3.point * w[2])
-//                        let normal = simd_normalize(wa1.normal * w[0] + wa2.normal * w[1] + wa3.normal * w[2])
-//                        let shadedColor = simd_dot(point, normal) * getColor(w)
-                        let shadedColor = getColor(w, z)
+                        let point = -simd_fast_normalize(p1 * w[0] + p2 * w[1] + p3 * w[2])
+                        let normal = simd_fast_normalize(n1 * w[0] + n2 * w[1] + n3 * w[2])
+                        let halfway = simd_fast_normalize(point + normal)
+                        let shadedColor = simd_dot(halfway, normal) * getColor(w, z)
+//                        let shadedColor = getColor(w, z)
                         Pointers.pBuffer.pointee = RGB(shadedColor)
                     }
                 }

@@ -1,8 +1,6 @@
 main
 main-cpp
-data-generator/data.swift
-data-generator/data.hpp
+data-generator/data.bin
 data-generator/data-generator
-data-generator/textures.bin
 data-generator/ppms
 render-cpp/render.dylib

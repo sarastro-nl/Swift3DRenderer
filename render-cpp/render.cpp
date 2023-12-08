@@ -3,7 +3,6 @@
 #include <sys/syslimits.h>
 #include <dlfcn.h>
 #include "render.hpp"
-#include "../data-generator/data.hpp"
 
 extern "C" {
 
@@ -134,11 +133,11 @@ void updateAndRender(const PixelData *pixel_data, const Input *input) {
         strcpy(path, info.dli_fname);
         FILE *fptr;
         char *p = strrchr(path, '/');
-        strcpy(p, "/textures.bin"); // iOS
+        strcpy(p, "/data.bin"); // iOS
         if ((fptr = fopen(path, "r")) == NULL) {
-            strcpy(p, "/Resources/textures.bin"); // macOS
+            strcpy(p, "/Resources/data.bin"); // macOS
             if ((fptr = fopen(path, "r")) == NULL) {
-                strcpy(p, "/../data-generator/textures.bin"); // cmd line
+                strcpy(p, "/../data-generator/data.bin"); // cmd line
                 if ((fptr = fopen(path, "r")) == NULL) {
                     exit(666);
                 }

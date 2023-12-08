@@ -209,8 +209,8 @@ extension Bundle {
         isCommandLine ? Bundle.main.bundlePath + "/render-cpp/render.dylib" : Bundle.main.privateFrameworksPath! + "/render_dylib.framework/render_dylib"
     }
 #else
-    var texturePath: String {
-        isCommandLine ? Bundle.main.bundlePath + "/data-generator/textures.bin" : Bundle.main.resourcePath! + "/textures.bin"
+    var dataPath: String {
+        isCommandLine ? Bundle.main.bundlePath + "/data-generator/data.bin" : Bundle.main.resourcePath! + "/data.bin"
     }
 #endif
 }

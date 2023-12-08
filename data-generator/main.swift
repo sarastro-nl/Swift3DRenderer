@@ -32,34 +32,13 @@ extension simd_float3 {
     }
 }
 
-extension FileManager {
-    func mergePpms(files: [String], to destination: String) {
-        let ppmHeaderSize = 15
-        FileManager.default.createFile(atPath: destination, contents: nil)
-        guard let writer = FileHandle(forWritingAtPath: destination) else { fatalError() }
-        defer { writer.closeFile() }
-        for file in files {
-            guard let reader = FileHandle(forReadingAtPath: file) else { fatalError() }
-            _ = try? reader.read(upToCount: ppmHeaderSize)
-            defer { reader.closeFile() }
-            guard let dataIn = try? reader.readToEnd() else { fatalError() }
-            var data: [UInt32] = []
-            for i in stride(from: 0, to: dataIn.count, by: 3) {
-                data.append((UInt32(dataIn[i]) << 8 + UInt32(dataIn[i + 1])) << 8 + UInt32(dataIn[i + 2]))
-            }
-            let dataOut = data.withUnsafeBytes { Data($0) }
-            writer.write(dataOut)
-        }
-    }
-}
-
 struct Texture {
     let index: Int
-    let mapping: simd_float2
+    let uv: simd_float2
 
     init(_ index: Int, _ mapping: simd_float2) {
         self.index = index
-        self.mapping = mapping
+        self.uv = mapping
     }
 }
 
@@ -69,11 +48,11 @@ enum ColorAttribute {
 }
 
 struct VertexAttribute {
-    let normal: simd_float3
+    let normal: simd_float4
     let colorAttribute: ColorAttribute
     
     init (_ normal: simd_float3, _ colorAttribute: ColorAttribute) {
-        self.normal = normal
+        self.normal = simd_make_float4(normal)
         self.colorAttribute = colorAttribute
     }
 }
@@ -87,8 +66,9 @@ let orange = NSColor.orange.simd_color
 let red = NSColor.red.simd_color
 let blue = NSColor.blue.simd_color
 
+@inline(__always)
 func normal(_ v: [simd_float3], _ a: Int, _ b: Int, _ c: Int) -> simd_float3 {
-    (simd_cross(v[c] - v[a], v[b] - v[a]))
+    normalize(simd_cross(v[c] - v[a], v[b] - v[a]))
 }
 
 func addTriangle() {
@@ -125,7 +105,7 @@ func addTriangle() {
 }
 
 func addRegularFloor() {
-    let a = 3
+    let a = 33
     for z in 0...a {
         for x in 0...a {
             var extra: Float = 0
@@ -371,109 +351,41 @@ func addIcosahedron() {
     attributeIndexes.append(contentsOf: (j..<(j + 60)))
 }
 
-//addRegularFloor()
-for _ in (0..<1) { addTriangle() }
+addRegularFloor()
+//for _ in (0..<1) { addTriangle() }
 //for _ in (0..<2) { addTetrahedron() }
 //for _ in (0..<2) { addIcosahedron() }
 
-
 let directory = String(#file.prefix(upTo: #file.lastIndex(of: "/")!))
-let swiftPath = directory + "/data.swift"
-let hppPath = directory + "/data.hpp"
-if !FileManager.default.fileExists(atPath: swiftPath) {
-    FileManager.default.createFile(atPath: swiftPath, contents: nil)
-}
-if !FileManager.default.fileExists(atPath: hppPath) {
-    FileManager.default.createFile(atPath: hppPath, contents: nil)
-}
+let dataPath = directory + "/data.bin"
+FileManager.default.createFile(atPath: dataPath, contents: nil)
+guard let writer = FileHandle(forWritingAtPath: dataPath) else { fatalError() }
+defer { writer.closeFile() }
 
-let directoryContents = try FileManager.default.contentsOfDirectory(atPath: directory + "/ppms").sorted()
-FileManager.default.mergePpms(files: directoryContents.map { directory + "/ppms/" + $0 }, to: directory + "/textures.bin")
+writer.write([vertices.count, 0].withUnsafeBytes { Data($0) })
+let v = vertices.map { simd_float4($0.x, $0.y, $0.z, 1)}
+writer.write(v.withUnsafeBytes { Data($0) })
+writer.write([vertexIndexes.count, 0].withUnsafeBytes { Data($0) })
+writer.write(vertexIndexes.withUnsafeBytes { Data($0) })
+writer.write(Array(repeating: 0, count: MemoryLayout<Int>.stride * vertexIndexes.count % 16 / MemoryLayout<Int>.stride).withUnsafeBytes { Data($0) })
+writer.write([attributes.count, 0].withUnsafeBytes { Data($0) })
+writer.write(attributes.withUnsafeBytes { Data($0) })
+writer.write([attributeIndexes.count, 0].withUnsafeBytes { Data($0) })
+writer.write(attributeIndexes.withUnsafeBytes { Data($0) })
+writer.write(Array(repeating: 0, count: MemoryLayout<Int>.stride * attributeIndexes.count % 16 / MemoryLayout<Int>.stride).withUnsafeBytes { Data($0) })
 
-var s = """
-// this file is generated
-import simd
-let texturesSize = \(directoryContents.count * 512 * 512 * 4)
-let worldVertices: [simd_float4] = [\n
-"""
-for v in vertices {
-    s += "simd_float4(\(v.x), \(v.y), \(v.z), 1),\n"
-}
-s += """
-]
-let vertexIndexes = [\n
-"""
-for i in stride(from: 0, to: vertexIndexes.count, by: 3) {
-    s += "\(vertexIndexes[i]), \(vertexIndexes[i+1]), \(vertexIndexes[i+2]),\n"
-}
-s += """
-]
-let worldAttributes: [VertexAttribute] = [\n
-"""
-for a in attributes {
-    s += "VertexAttribute(simd_float4(\(a.normal.x), \(a.normal.y), \(a.normal.z), 0), "
-    switch a.colorAttribute {
-        case .color(let c):
-            s += ".color(simd_float3(\(c[0]), \(c[1]), \(c[2])))),\n"
-        case .texture(let t):
-            s += ".texture(Texture(\(t.index), simd_float2(\(t.mapping.x), \(t.mapping.y))))),\n"
+let contents = try FileManager.default.contentsOfDirectory(atPath: directory + "/ppms").sorted()
+let files = contents.map { directory + "/ppms/" + $0 }
+writer.write([files.count << 20, 0].withUnsafeBytes { Data($0) })
+let ppmHeaderSize = 15
+var dataOut: [UInt32] = []
+for file in files {
+    guard let reader = FileHandle(forReadingAtPath: file) else { fatalError() }
+    defer { reader.closeFile() }
+    _ = try? reader.read(upToCount: ppmHeaderSize)
+    guard let dataIn = try? reader.readToEnd() else { fatalError() }
+    for i in stride(from: 0, to: dataIn.count, by: 3) {
+        dataOut.append((UInt32(dataIn[i]) << 8 + UInt32(dataIn[i + 1])) << 8 + UInt32(dataIn[i + 2]))
     }
 }
-s += """
-]
-let attributeIndexes = [\n
-"""
-for i in stride(from: 0, to: attributeIndexes.count, by: 3) {
-    s += "\(attributeIndexes[i]), \(attributeIndexes[i+1]), \(attributeIndexes[i+2]),\n"
-}
-s += """
-]
-"""
-
-try s.write(toFile: swiftPath, atomically: true, encoding: .utf8)
-
-s = """
-// this file is generated
-#include <simd/simd.h>
-#include "../render-cpp/render.hpp"
-const int32_t world_vertices_count = \(vertices.count);
-const int32_t world_attributes_count = \(attributes.count);
-const int32_t world_triangles_count = \(vertexIndexes.count/3);
-const int32_t textures_size = \(directoryContents.count * 512 * 512 * 4);
-const simd_float4 world_vertices[\(vertices.count)] = {\n
-"""
-for v in vertices {
-    s += "(simd_float4){\(v.x), \(v.y), \(v.z), 1},\n"
-}
-s += """
-};
-const int32_t vertex_indexes[\(vertexIndexes.count)] = {\n
-"""
-for i in stride(from: 0, to: vertexIndexes.count, by: 3) {
-    s += "\(vertexIndexes[i]), \(vertexIndexes[i+1]), \(vertexIndexes[i+2]),\n"
-}
-s += """
-};
-const vertex_attribute_t world_attributes[\(attributes.count)] = {\n
-"""
-for a in attributes {
-    s += "{ .normal = {\(a.normal.x), \(a.normal.y), \(a.normal.z), 0}, "
-    switch a.colorAttribute {
-        case .color(let c):
-            s += ".disc = color, .color_attribute = {{\(c[0]), \(c[1]), \(c[2])}}},\n"
-        case .texture(let t):
-            s += ".disc = texture, .color_attribute = { .texture = {\(t.index), {\(t.mapping.x), \(t.mapping.y)}}}},\n"
-    }
-}
-s += """
-};
-const int32_t attribute_indexes[\(attributeIndexes.count)] = {\n
-"""
-for i in stride(from: 0, to: attributeIndexes.count, by: 3) {
-    s += "\(attributeIndexes[i]), \(attributeIndexes[i+1]), \(attributeIndexes[i+2]),\n"
-}
-s += """
-};
-"""
-
-try s.write(toFile: hppPath, atomically: true, encoding: .utf8)
+writer.write(dataOut.withUnsafeBytes { Data($0) })
