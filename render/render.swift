@@ -82,8 +82,8 @@ private func edgeFunction(_ v1: simd_float3, _ v2: simd_float3, _ v3: simd_float
 }
 
 @inline(__always)
-private func nextPowerOfTwo(_ f: Float) -> Int {
-    var i = Int(f) - 1
+private func nextPowerOfTwo(_ i: Int) -> Int {
+    var i = i - 1
     i |= i >> 1
     i |= i >> 2
     i |= i >> 4
@@ -92,8 +92,8 @@ private func nextPowerOfTwo(_ f: Float) -> Int {
 
 @inline(__always)
 private func getTextureColor(_ buffer: UnsafePointer<UInt32>, _ uv: simd_float2, _ level: simd_float2) -> simd_float3 {
-    let levelX = nextPowerOfTwo(max(min(level.x, 256), 1))
-    let levelY = nextPowerOfTwo(max(min(level.y, 256), 1))
+    let levelX = nextPowerOfTwo(max(min(Int(level.x), 256), 1))
+    let levelY = nextPowerOfTwo(max(min(Int(level.y), 256), 1))
     let x = Int(fmodf(uv.x, 1) * Float(levelX)) + 511 & ~(2 * levelX - 1)
     let y = Int(fmodf(uv.y, 1) * Float(levelY)) + 511 & ~(2 * levelY - 1)
     let rgb = (buffer + x + y << 9).pointee
@@ -139,7 +139,7 @@ func initialize() {
 
     reader.read(count, maxLength: 16)
     Scene.vertexIndicesCount = count.pointee
-    var alignedCount = Scene.vertexIndicesCount + (Scene.vertexIndicesCount % 2 == 0 ? 0 : 1)
+    var alignedCount = Scene.vertexIndicesCount + Scene.vertexIndicesCount % 2
     Scene.vertexIndices = .allocate(capacity: alignedCount)
     reader.read(Scene.vertexIndices, maxLength: alignedCount * MemoryLayout<Int>.stride)
     
@@ -151,7 +151,7 @@ func initialize() {
     
     reader.read(count, maxLength: 16)
     Scene.attributeIndicesCount = count.pointee
-    alignedCount = Scene.attributeIndicesCount + (Scene.attributeIndicesCount % 2 == 0 ? 0 : 1)
+    alignedCount = Scene.attributeIndicesCount + Scene.attributeIndicesCount % 2
     Scene.attributeIndices = .allocate(capacity: alignedCount)
     reader.read(Scene.attributeIndices, maxLength: alignedCount * MemoryLayout<Int>.stride)
 
@@ -178,13 +178,12 @@ func updateAndRender(_ pixelData: inout PixelData, _ input: inout Input) {
 
     let screenSize = simd_float2(Float(pixelData.width), Float(pixelData.height))
     for (i, vertex) in UnsafeBufferPointer(start: Scene.vertices, count: Scene.vertexCount).enumerated() {
-        Scene.cameraVertices[i] = simd_mul(State.cameraMatrix, vertex)
-    }
-    for (i, vertex) in UnsafeBufferPointer(start: Scene.cameraVertices, count: Scene.vertexCount).enumerated() {
-        if vertex.z > -Config.near {
+        let v = simd_mul(State.cameraMatrix, vertex)
+        Scene.cameraVertices[i] = v
+        if v.z > -Config.near {
             Scene.rasterVertices[i] = simd_float3.zero
         } else {
-            Scene.rasterVertices[i] = simd_float3(vertex.x, -vertex.y, 0) * Config.factor / -vertex.z + simd_float3(screenSize / 2, -vertex.z)
+            Scene.rasterVertices[i] = simd_float3(v.x, -v.y, 0) * Config.factor / -v.z + simd_float3(screenSize / 2, -v.z)
         }
     }
     for (i, attribute) in UnsafeBufferPointer(start: Scene.attributes, count: Scene.attributesCount).enumerated() {

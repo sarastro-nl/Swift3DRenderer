@@ -88,10 +88,12 @@ func addTriangle() {
     let r: Float = 1.0
     let p = simd_float3(0, 0, -10)
     v = v.map { r * $0 + p }
+    let i = vertices.count
     vertices.append(contentsOf: v)
     vertexIndexes.append(contentsOf: [
-        0, 1, 2,
+        i, i + 1, i + 2,
     ])
+    let j = attributes.count
     attributes.append(contentsOf: [
         //        VertexAttribute(normal(v, 0, 1, 2), .color(red)),
         //        VertexAttribute(normal(v, 0, 1, 2), .color(orange)),
@@ -100,12 +102,12 @@ func addTriangle() {
         VertexAttribute(normal(v, 0, 1, 2), .texture(Texture(0, simd_float2(0.5, 0)))),
         VertexAttribute(normal(v, 0, 1, 2), .texture(Texture(0, simd_float2(1, sqrt(3)/2)))),
     ])
-    let j = attributeIndexes.count
-    attributeIndexes.append(contentsOf: (j..<(j + 3)))
+    attributeIndexes.append(contentsOf: j..<(j + 3))
 }
 
 func addRegularFloor() {
-    let a = 3
+    let a = 33
+    let i = vertices.count
     for z in 0...a {
         for x in 0...a {
             var extra: Float = 0
@@ -115,11 +117,13 @@ func addRegularFloor() {
             vertices.append(simd_float3(Float(x) - Float(a + 1) / 2 + extra, -0.5, -Float(z) * sqrt(3) / 2 - 2))
         }
     }
+    let ppm = 2
     let scale: Float = 0.8
     for z in 0..<a {
-        let a1 = z * (a + 1)
-        let a2 = (z + 1) * (a + 1)
+        let a1 = i + z * (a + 1)
+        let a2 = i + (z + 1) * (a + 1)
         for x in 0..<a {
+            let j = attributes.count
             let xStart = fmodf(Float(x) * scale, 1.0)
             let yStart = fmodf(Float(a - z - 1) * scale, 1.0)
             if z % 2 == 0 {
@@ -129,9 +133,9 @@ func addRegularFloor() {
                     let t2 = simd_float2(xStart + 0.5 * scale, yStart + 0 * scale)
                     let t3 = simd_float2(xStart + 1 * scale, yStart + 1 * scale)
                     attributes.append(contentsOf: [
-                        VertexAttribute(simd_float3(0, 1, 0), .texture(Texture(0, t1))),
-                        VertexAttribute(simd_float3(0, 1, 0), .texture(Texture(0, t2))),
-                        VertexAttribute(simd_float3(0, 1, 0), .texture(Texture(0, t3))),
+                        VertexAttribute(simd_float3(0, 1, 0), .texture(Texture(ppm, t1))),
+                        VertexAttribute(simd_float3(0, 1, 0), .texture(Texture(ppm, t2))),
+                        VertexAttribute(simd_float3(0, 1, 0), .texture(Texture(ppm, t3))),
 //                        VertexAttribute(simd_float3(0, 1, 0), .color(red)),
 //                        VertexAttribute(simd_float3(0, 1, 0), .color(red)),
 //                        VertexAttribute(simd_float3(0, 1, 0), .color(red)),
@@ -141,13 +145,10 @@ func addRegularFloor() {
                     let t1 = simd_float2(xStart + 1 * scale, yStart + 1 * scale)
                     let t2 = simd_float2(xStart + 0.5 * scale, yStart + 0 * scale)
                     let t3 = simd_float2(xStart + 1.5 * scale, yStart + 0 * scale)
-//                    let t1 = simd_float2(fmodf((Float(x) + 1) * scale, 1.0), fmodf((Float(a - z - 1) + 1) * scale, 1.0))
-//                    let t2 = simd_float2(fmodf((Float(x) + 0.5) * scale, 1.0), fmodf((Float(a - z - 1) + 0) * scale, 1.0))
-//                    let t3 = simd_float2(fmodf((Float(x) + 1.5) * scale, 1.0), fmodf((Float(a - z - 1) + 0) * scale, 1.0))
                     attributes.append(contentsOf: [
-                        VertexAttribute(simd_float3(0, 1, 0), .texture(Texture(0, t1))),
-                        VertexAttribute(simd_float3(0, 1, 0), .texture(Texture(0, t2))),
-                        VertexAttribute(simd_float3(0, 1, 0), .texture(Texture(0, t3))),
+                        VertexAttribute(simd_float3(0, 1, 0), .texture(Texture(ppm, t1))),
+                        VertexAttribute(simd_float3(0, 1, 0), .texture(Texture(ppm, t2))),
+                        VertexAttribute(simd_float3(0, 1, 0), .texture(Texture(ppm, t3))),
 //                        VertexAttribute(simd_float3(0, 1, 0), .color(orange)),
 //                        VertexAttribute(simd_float3(0, 1, 0), .color(orange)),
 //                        VertexAttribute(simd_float3(0, 1, 0), .color(orange)),
@@ -159,13 +160,10 @@ func addRegularFloor() {
                     let t1 = simd_float2(xStart + 0.5 * scale, yStart + 1 * scale)
                     let t2 = simd_float2(xStart + 0 * scale, yStart + 0 * scale)
                     let t3 = simd_float2(xStart + 1 * scale, yStart + 0 * scale)
-//                    let t1 = simd_float2(fmodf((Float(x) + 0.5) * scale, 1.0), fmodf((Float(a - z - 1) + 1) * scale, 1.0))
-//                    let t2 = simd_float2(fmodf((Float(x) + 0) * scale, 1.0), fmodf((Float(a - z - 1) + 0) * scale, 1.0))
-//                    let t3 = simd_float2(fmodf((Float(x) + 1) * scale, 1.0), fmodf((Float(a - z - 1) + 0) * scale, 1.0))
                     attributes.append(contentsOf: [
-                        VertexAttribute(simd_float3(0, 1, 0), .texture(Texture(0, t1))),
-                        VertexAttribute(simd_float3(0, 1, 0), .texture(Texture(0, t2))),
-                        VertexAttribute(simd_float3(0, 1, 0), .texture(Texture(0, t3))),
+                        VertexAttribute(simd_float3(0, 1, 0), .texture(Texture(ppm, t1))),
+                        VertexAttribute(simd_float3(0, 1, 0), .texture(Texture(ppm, t2))),
+                        VertexAttribute(simd_float3(0, 1, 0), .texture(Texture(ppm, t3))),
 //                        VertexAttribute(simd_float3(0, 1, 0), .color(orange)),
 //                        VertexAttribute(simd_float3(0, 1, 0), .color(orange)),
 //                        VertexAttribute(simd_float3(0, 1, 0), .color(orange)),
@@ -175,20 +173,16 @@ func addRegularFloor() {
                     let t1 = simd_float2(xStart + 1 * scale, yStart + 0 * scale)
                     let t2 = simd_float2(xStart + 1.5 * scale, yStart + 1 * scale)
                     let t3 = simd_float2(xStart + 0.5 * scale, yStart + 1 * scale)
-//                    let t1 = simd_float2(fmodf((Float(x) + 1) * scale, 1.0), fmodf((Float(a - z - 1) + 0) * scale, 1.0))
-//                    let t2 = simd_float2(fmodf((Float(x) + 1.5) * scale, 1.0), fmodf((Float(a - z - 1) + 1) * scale, 1.0))
-//                    let t3 = simd_float2(fmodf((Float(x) + 0.5) * scale, 1.0), fmodf((Float(a - z - 1) + 1) * scale, 1.0))
                     attributes.append(contentsOf: [
-                        VertexAttribute(simd_float3(0, 1, 0), .texture(Texture(0, t1))),
-                        VertexAttribute(simd_float3(0, 1, 0), .texture(Texture(0, t2))),
-                        VertexAttribute(simd_float3(0, 1, 0), .texture(Texture(0, t3))),
+                        VertexAttribute(simd_float3(0, 1, 0), .texture(Texture(ppm, t1))),
+                        VertexAttribute(simd_float3(0, 1, 0), .texture(Texture(ppm, t2))),
+                        VertexAttribute(simd_float3(0, 1, 0), .texture(Texture(ppm, t3))),
 //                        VertexAttribute(simd_float3(0, 1, 0), .color(blue)),
 //                        VertexAttribute(simd_float3(0, 1, 0), .color(blue)),
 //                        VertexAttribute(simd_float3(0, 1, 0), .color(blue)),
                     ])
                 }
             }
-            let j = attributeIndexes.count
             attributeIndexes.append(contentsOf: j..<(j+6))
         }
     }
@@ -208,7 +202,7 @@ func addTetrahedron() {
     //    let r = Float.random(in: 1...10)
     //    let p = simd_float3.randomPoint
     let r: Float = 2.0
-    let p = simd_float3(0, 0, -50)
+    let p = simd_float3(-10, 5, -10)
     v = v.map { r * $0 + p }
     let i = vertices.count
     vertices.append(contentsOf: v)
@@ -233,7 +227,7 @@ func addTetrahedron() {
         VertexAttribute(normal(v, 1, 2, 3), .color(orange)),
         VertexAttribute(normal(v, 1, 2, 3), .color(orange)),
     ])
-    attributeIndexes.append(contentsOf: (j..<(j + 12)))
+    attributeIndexes.append(contentsOf: j..<(j + 12))
 }
 
 func addIcosahedron() {
@@ -258,7 +252,7 @@ func addIcosahedron() {
     //    let r = Float.random(in: 1...10)
     //    let p = simd_float3.randomPoint
     let r: Float = 2.0
-    let p = simd_float3(0, 0, -50)
+    let p = simd_float3(10, 5, -10)
     v = v.map { r * $0 + p }
     
     let i = vertices.count
@@ -348,13 +342,13 @@ func addIcosahedron() {
         VertexAttribute(normal(v, 3, 2, 5), .color(orange)),
         VertexAttribute(normal(v, 3, 2, 5), .color(orange)),
     ])
-    attributeIndexes.append(contentsOf: (j..<(j + 60)))
+    attributeIndexes.append(contentsOf: j..<(j + 60))
 }
 
-//addRegularFloor()
-for _ in (0..<1) { addTriangle() }
-//for _ in (0..<2) { addTetrahedron() }
-//for _ in (0..<2) { addIcosahedron() }
+addRegularFloor()
+for _ in 0..<1 { addTriangle() }
+for _ in 0..<2 { addTetrahedron() }
+for _ in 0..<2 { addIcosahedron() }
 
 let directory = String(#file.prefix(upTo: #file.lastIndex(of: "/")!))
 let dataPath = directory + "/data.bin"
@@ -369,7 +363,10 @@ writer.write([vertexIndexes.count, 0].withUnsafeBytes { Data($0) })
 writer.write(vertexIndexes.withUnsafeBytes { Data($0) })
 writer.write(Array(repeating: 0, count: MemoryLayout<Int>.stride * vertexIndexes.count % 16 / MemoryLayout<Int>.stride).withUnsafeBytes { Data($0) })
 writer.write([attributes.count, 0].withUnsafeBytes { Data($0) })
-writer.write(attributes.withUnsafeBytes { Data($0) })
+writer.write(attributes.reduce(into: Data()) { r, va in
+    var va = va
+    r += withUnsafeBytes(of: &va) { Data($0) } + Data(Array(repeating: 0, count: 15))
+})
 writer.write([attributeIndexes.count, 0].withUnsafeBytes { Data($0) })
 writer.write(attributeIndexes.withUnsafeBytes { Data($0) })
 writer.write(Array(repeating: 0, count: MemoryLayout<Int>.stride * attributeIndexes.count % 16 / MemoryLayout<Int>.stride).withUnsafeBytes { Data($0) })

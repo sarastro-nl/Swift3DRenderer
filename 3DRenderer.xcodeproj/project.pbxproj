@@ -30,19 +30,19 @@
 			remoteGlobalIDString = 4EB603FA2B0D32B4008A435B;
 			remoteInfo = "data-generator";
 		};
-		4E2F0CF62B121020009BD65B /* PBXContainerItemProxy */ = {
-			isa = PBXContainerItemProxy;
-			containerPortal = 4EB582692B0D047C00049821 /* Project object */;
-			proxyType = 1;
-			remoteGlobalIDString = 4E5DC8762B0FB12D00D6573C;
-			remoteInfo = render.dylib;
-		};
 		4E3D63AE2B120940003F490F /* PBXContainerItemProxy */ = {
 			isa = PBXContainerItemProxy;
 			containerPortal = 4EB582692B0D047C00049821 /* Project object */;
 			proxyType = 1;
 			remoteGlobalIDString = 4EB603FA2B0D32B4008A435B;
 			remoteInfo = "data-generator";
+		};
+		4E5F0F612B23751F00D2AEBA /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 4EB582692B0D047C00049821 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = 4E5DC8762B0FB12D00D6573C;
+			remoteInfo = render.dylib;
 		};
 /* End PBXContainerItemProxy section */
 
@@ -204,8 +204,8 @@
 			buildRules = (
 			);
 			dependencies = (
+				4E5F0F622B23751F00D2AEBA /* PBXTargetDependency */,
 				4E2F0CE52B120FEF009BD65B /* PBXTargetDependency */,
-				4E2F0CF72B121020009BD65B /* PBXTargetDependency */,
 			);
 			name = "main cpp";
 			productName = main;
@@ -402,15 +402,15 @@
 			target = 4EB603FA2B0D32B4008A435B /* data-generator */;
 			targetProxy = 4E2F0CE62B120FEF009BD65B /* PBXContainerItemProxy */;
 		};
-		4E2F0CF72B121020009BD65B /* PBXTargetDependency */ = {
-			isa = PBXTargetDependency;
-			target = 4E5DC8762B0FB12D00D6573C /* render.dylib */;
-			targetProxy = 4E2F0CF62B121020009BD65B /* PBXContainerItemProxy */;
-		};
 		4E3D63AF2B120940003F490F /* PBXTargetDependency */ = {
 			isa = PBXTargetDependency;
 			target = 4EB603FA2B0D32B4008A435B /* data-generator */;
 			targetProxy = 4E3D63AE2B120940003F490F /* PBXContainerItemProxy */;
+		};
+		4E5F0F622B23751F00D2AEBA /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = 4E5DC8762B0FB12D00D6573C /* render.dylib */;
+			targetProxy = 4E5F0F612B23751F00D2AEBA /* PBXContainerItemProxy */;
 		};
 /* End PBXTargetDependency section */
 
