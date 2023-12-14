@@ -279,16 +279,21 @@ void updateAndRender(const PixelData *pixel_data, const Input *input) {
             const simd_float3 cc2 = a2.color_attribute.color * rvz[1];
             const simd_float3 cc3 = a3.color_attribute.color * rvz[2];
             getColor = [cc1, cc2, cc3] (const simd_float3 w, const float z) { return cc1 * w[0] + cc2 * w[1] + cc3 * w[2];};
-        } else {
+        } else if (a1.disc == texture) {
             uint32_t *buffer = texture_buffer.buffer + ((int32_t)a1.color_attribute.texture.index << 18);
             const simd_float2 tm1 = a1.color_attribute.texture.uv * rvz[0];
             const simd_float2 tm2 = a2.color_attribute.texture.uv * rvz[1];
             const simd_float2 tm3 = a3.color_attribute.texture.uv * rvz[2];
-            const simd_float2 tpp = 1 / simd_abs(tm1 * simd_make_float2(weight.dx[0], weight.dy[0]) +
-                                                 tm2 * simd_make_float2(weight.dx[1], weight.dy[1]) +
-                                                 tm3 * simd_make_float2(weight.dx[2], weight.dy[2]));
-            getColor = [buffer, tm1, tm2, tm3, tpp] (const simd_float3 w, const float z) { return getTextureColor(buffer, tm1 * w[0] + tm2 * w[1] + tm3 * w[2], tpp * z);};
-        }
+            const simd_float2 dz = simd_make_float2(simd_dot(rvz, weight.dx), simd_dot(rvz, weight.dy));
+            const simd_float2 tpp = (tm1 * simd_make_float2(weight.dx[0], weight.dy[0]) +
+                                     tm2 * simd_make_float2(weight.dx[1], weight.dy[1]) +
+                                     tm3 * simd_make_float2(weight.dx[2], weight.dy[2]));
+            getColor = [buffer, tm1, tm2, tm3, dz, tpp] (const simd_float3 w, const float z) {
+                const simd_float2 mapping = tm1 * w[0] + tm2 * w[1] + tm3 * w[2];
+                const simd_float2 level = z / simd_abs(tpp - mapping * dz);
+                return getTextureColor(buffer, mapping, level);
+            };
+        } else { exit(999); }
 
         for (int y = ymin; y <= ymax; y++) {
             for (int x = xmin; x <= xmax; x++) {

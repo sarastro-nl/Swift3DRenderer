@@ -34,7 +34,7 @@ private struct Config {
     static let scale = Config.near * tan(Config.fov / 2)
     static var factor: Float = 1
     static let speed: Float = 0.1
-    static let rotationSpeed: Float = 0.1
+    static let rotationSpeed: Float = 0.3
     static var backgroundColor = RGB(simd_float3(30, 30, 30))
     static var initialized = false
 }
@@ -246,9 +246,9 @@ func updateAndRender(_ pixelData: inout PixelData, _ input: inout Input) {
             //            if i == 3 * (n * 2 * (n >> 1) + n - 1) {
             //                print("foo")
             //            }
-            if xmin < xmax && ((xmin + 1)..<xmax).contains(480) && ymin < ymax && (ymin..<ymax).contains(293) {
+//            if xmin < xmax && ((xmin + 1)..<xmax).contains(480) && ymin < ymax && (ymin..<ymax).contains(293) {
 //                print("foo")
-            }
+//            }
 //            let dzy = simd_dot(rvz, Weight.dy / 2)
 //            let l = tm1.y * Weight.dy[0] / 2 + tm2.y * Weight.dy[1]/2 + tm3.y * Weight.dy[2]/2
             let dz = simd_float2(simd_dot(rvz, Weight.dx), simd_dot(rvz, Weight.dy))
