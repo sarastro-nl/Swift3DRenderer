@@ -8,7 +8,7 @@ extern "C" {
 
 #include <string.h>
 
-#define RGB(r, g, b) (((((uint8_t)(r) << 8) + (uint8_t)(g)) << 8) + (uint8_t)(b))
+#define RGB(r, g, b) (uint32_t)(((((uint8_t)(r) << 8) + (uint8_t)(g)) << 8) + (uint8_t)(b))
 #define EDGE_FUNCTION(a, b, c) ((c.x - a.x) * (a.y - b.y) + (c.y - a.y) * (b.x - a.x))
 
 typedef struct {
@@ -39,10 +39,10 @@ typedef struct {
 typedef struct {
     uint32_t *pbuffer;
     float *dbuffer;
-    const int xDelta;
+    const uint32_t xDelta;
 } pointers_t;
 
-struct {
+static struct {
     simd_float3 camera_position;
     struct { simd_float3 x; simd_float3 y; simd_float3 z; } camera_axis;
     simd_float4x3 camera_matrix;
@@ -54,21 +54,21 @@ struct {
     .mouse = simd_make_float2(0, 0),
 };
 
-struct {
+static struct {
     float *buffer;
-    int32_t buffer_size;
+    uint32_t buffer_size;
 } depth_buffer = {
     .buffer = NULL,
     .buffer_size = 0,
 };
 
-struct {
+static struct {
     uint32_t *buffer;
 } texture_buffer = {
     .buffer = NULL,
 };
 
-struct {
+static struct {
     const float near;
     const float fov;
     const float scale;
@@ -77,16 +77,16 @@ struct {
     const float rotation_speed;
     const uint32_t background_color;
 } config = {
-    .near = 0.1,
-    .fov = M_PI / 5,
+    .near = 0.1f,
+    .fov = (float)M_PI / 5.f,
     .scale = config.near * tan(config.fov / 2),
     .factor = 1,
-    .speed = 0.1,
-    .rotation_speed = 0.3,
+    .speed = 0.1f,
+    .rotation_speed = 0.3f,
     .background_color = RGB(30, 30, 30),
 };
 
-struct {
+static struct {
     simd_float4 *vertices;
     uint64_t vertex_count;
     uint64_t *vertex_indices;
@@ -102,7 +102,7 @@ struct {
 } scene = {0};
 
 __attribute__((always_inline))
-int32_t nextPowerOfTwo(int32_t i) {
+uint32_t nextPowerOfTwo(uint32_t i) {
     i--;
     i |= i >> 1;
     i |= i >> 2;
@@ -112,12 +112,12 @@ int32_t nextPowerOfTwo(int32_t i) {
 
 __attribute__((always_inline))
 simd_float3 getTextureColor(uint32_t *buffer, simd_float2 uv, simd_float2 level) {
-    int32_t levelX = nextPowerOfTwo(std::max(std::min((int32_t)level.x, 256), 1));
-    int32_t levelY = nextPowerOfTwo(std::max(std::min((int32_t)level.y, 256), 1));
+    uint32_t levelX = nextPowerOfTwo((uint32_t)fmax(fmin(level.x, 256.f), 1.f));
+    uint32_t levelY = nextPowerOfTwo((uint32_t)fmax(fmin(level.y, 256.f), 1.f));
 //    levelX = 256;
 //    levelY = 256;
-    int32_t x = (int32_t)(fmodf(uv.x, 1) * levelX) + (511 & ~(2 * levelX - 1));
-    int32_t y = (int32_t)(fmodf(uv.y, 1) * levelY) + (511 & ~(2 * levelY - 1));
+    uint32_t x = (uint32_t)(fmodf(uv.x, 1) * levelX) + (511 & ~(2 * levelX - 1));
+    uint32_t y = (uint32_t)(fmodf(uv.y, 1) * levelY) + (511 & ~(2 * levelY - 1));
     uint32_t rgb = *(buffer + x + (y << 9));
     return simd_make_float3((float)(rgb >> 16), (float)((rgb >> 8) & 255), (float)(rgb & 255));
 }
@@ -207,7 +207,7 @@ void updateAndRender(const PixelData *pixel_data, const Input *input) {
     
     update_camera(input);
     
-    const int32_t depth_buffer_size = pixel_data->width * pixel_data->height * sizeof(float);
+    const uint32_t depth_buffer_size = pixel_data->width * pixel_data->height * sizeof(float);
     if (depth_buffer.buffer_size != depth_buffer_size) {
         depth_buffer.buffer_size = depth_buffer_size;
         depth_buffer.buffer = (float *)realloc(depth_buffer.buffer, depth_buffer_size);
@@ -217,7 +217,7 @@ void updateAndRender(const PixelData *pixel_data, const Input *input) {
     memset_pattern4(pixel_data->buffer, &config.background_color, pixel_data->bufferSize);
 
     const simd_float2 size = simd_make_float2((float)pixel_data->width, (float)pixel_data->height);
-    for (int i = 0; i < scene.vertex_count; i++) {
+    for (uint32_t i = 0; i < scene.vertex_count; i++) {
         const simd_float3 v = simd_mul(state.camera_matrix, scene.vertices[i]);
         scene.camera_vertices[i] = v;
         if (v.z > -config.near) {
@@ -226,13 +226,13 @@ void updateAndRender(const PixelData *pixel_data, const Input *input) {
             scene.raster_vertices[i] = simd_make_float3(v.x, -v.y, 0) * config.factor / -v.z + simd_make_float3(size / 2, -v.z);
         }
     }
-    for (int i = 0; i < scene.attributes_count; i++) {
+    for (uint32_t i = 0; i < scene.attributes_count; i++) {
         scene.normals[i] = simd_mul(state.camera_matrix, scene.attributes[i].normal);
     }
-    for (int i = 0; i < scene.vertex_indices_count; i += 3) {
-        const int64_t vi1 = scene.vertex_indices[i];
-        const int64_t vi2 = scene.vertex_indices[i + 1];
-        const int64_t vi3 = scene.vertex_indices[i + 2];
+    for (uint32_t i = 0; i < scene.vertex_indices_count; i += 3) {
+        const uint64_t vi1 = scene.vertex_indices[i];
+        const uint64_t vi2 = scene.vertex_indices[i + 1];
+        const uint64_t vi3 = scene.vertex_indices[i + 2];
         const simd_float3 rv1 = scene.raster_vertices[vi1];
         const simd_float3 rv2 = scene.raster_vertices[vi2];
         const simd_float3 rv3 = scene.raster_vertices[vi3];
@@ -243,26 +243,26 @@ void updateAndRender(const PixelData *pixel_data, const Input *input) {
         const float area = EDGE_FUNCTION(rv1, rv2, rv3);
         if (area < 10) { continue; }
         const float oneOverArea = 1 / area;
-        const int32_t xmin = std::max(0, (int)rvmin.x);
-        const int32_t xmax = std::min(pixel_data->width - 1, (int)rvmax.x);
-        const int32_t ymin = std::max(0, (int)rvmin.y);
-        const int32_t ymax = std::min(pixel_data->height - 1, (int)rvmax.y);
-        const simd_float2 p = simd_make_float2((float)xmin + 0.5, (float)ymin + 0.5);
+        const uint32_t xmin = (uint32_t)fmax(0, rvmin.x);
+        const uint32_t xmax = (uint32_t)fmin(size[0] - 1, rvmax.x);
+        const uint32_t ymin = (uint32_t)fmax(0, rvmin.y);
+        const uint32_t ymax = (uint32_t)fmin(size[1] - 1, rvmax.y);
+        const simd_float2 p = simd_make_float2((float)xmin + 0.5f, (float)ymin + 0.5f);
         const simd_float3 wstart = simd_make_float3(EDGE_FUNCTION(rv2, rv3, p), EDGE_FUNCTION(rv3, rv1, p), EDGE_FUNCTION(rv1, rv2, p)) * oneOverArea;
         weight_t weight = {
             .w = wstart, .wy = wstart,
             .dx = simd_make_float3(rv2.y - rv3.y, rv3.y - rv1.y, rv1.y - rv2.y) * oneOverArea,
             .dy = simd_make_float3(rv3.x - rv2.x, rv1.x - rv3.x, rv2.x - rv1.x) * oneOverArea };
-        const int32_t bufferStart = ymin * pixel_data->width + xmin;
+        const uint32_t bufferStart = ymin * pixel_data->width + xmin;
         pointers_t pointers = {
             .pbuffer = pixel_data->buffer + bufferStart,
             .dbuffer = depth_buffer.buffer + bufferStart,
             .xDelta = pixel_data->width - xmax + xmin - 1,
         };
         
-        const int64_t ai1 = scene.attribute_indices[i];
-        const int64_t ai2 = scene.attribute_indices[i + 1];
-        const int64_t ai3 = scene.attribute_indices[i + 2];
+        const uint64_t ai1 = scene.attribute_indices[i];
+        const uint64_t ai2 = scene.attribute_indices[i + 1];
+        const uint64_t ai3 = scene.attribute_indices[i + 2];
         const vertex_attribute_t a1 = scene.attributes[ai1];
         const vertex_attribute_t a2 = scene.attributes[ai2];
         const vertex_attribute_t a3 = scene.attributes[ai3];
@@ -295,8 +295,8 @@ void updateAndRender(const PixelData *pixel_data, const Input *input) {
             };
         } else { exit(999); }
 
-        for (int y = ymin; y <= ymax; y++) {
-            for (int x = xmin; x <= xmax; x++) {
+        for (uint32_t y = ymin; y <= ymax; y++) {
+            for (uint32_t x = xmin; x <= xmax; x++) {
                 if (weight.w[0] >= 0 && weight.w[1] >= 0 && weight.w[2] >= 0) {
                     const float z = simd_dot(rvz, weight.w);
                     if (z > *pointers.dbuffer) {

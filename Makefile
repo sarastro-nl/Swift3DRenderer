@@ -1,6 +1,6 @@
 all: main
 
-CFLAGS=-O2
+CFLAGS=-O2 -Wall -Wconversion
 SWIFTFLAGS=-O
 
 main: main.swift input.swift render/render.swift data-generator/data.bin

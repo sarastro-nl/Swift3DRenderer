@@ -92,12 +92,6 @@ private func nextPowerOfTwo(_ i: Float) -> Int {
 
 @inline(__always)
 private func getTextureColor(_ buffer: UnsafePointer<UInt32>, _ uv: simd_float2, _ level: simd_float2) -> simd_float3 {
-    if level.x.isInfinite || level.x.isNaN {
-        print("foo \(level)")
-    }
-    if level.y.isInfinite || level.y.isNaN {
-        print("foo \(level)")
-    }
     let levelX = nextPowerOfTwo(fmax(fmin(level.x, 256), 1))
     let levelY = nextPowerOfTwo(fmax(fmin(level.y, 256), 1))
     let x = Int(fmodf(uv.x, 1) * Float(levelX)) + 511 & ~(2 * levelX - 1)
@@ -205,10 +199,10 @@ func updateAndRender(_ pixelData: inout PixelData, _ input: inout Input) {
         let area = edgeFunction(rv1, rv2, rv3)
         if area < 10 { continue }
         let oneOverArea = 1 / area
-        let xmin = max(0, Int(rvmin.x))
-        let xmax = min(Int(pixelData.width) - 1, Int(rvmax.x))
-        let ymin = max(0, Int(rvmin.y))
-        let ymax = min(Int(pixelData.height) - 1, Int(rvmax.y))
+        let xmin = Int(fmax(0, rvmin.x))
+        let xmax = Int(fmin(screenSize[0] - 1, rvmax.x))
+        let ymin = Int(fmax(0, rvmin.y))
+        let ymax = Int(fmin(screenSize[1] - 1, rvmax.y))
         let pStart = simd_float3(Float(xmin) + 0.5, Float(ymin) + 0.5, 0)
         let wStart = simd_float3(edgeFunction(rv2, rv3, pStart), edgeFunction(rv3, rv1, pStart), edgeFunction(rv1, rv2, pStart)) * oneOverArea
         Weight.w = wStart
@@ -236,58 +230,19 @@ func updateAndRender(_ pixelData: inout PixelData, _ input: inout Input) {
             let tm1 = t1.uv * rvz[0]
             let tm2 = t2.uv * rvz[1]
             let tm3 = t3.uv * rvz[2]
-//            let tmmin = simd_min(simd_min(t1.uv, t2.uv), t3.uv)
-//            let tmmax = simd_max(simd_max(t1.uv, t2.uv), t3.uv)
-//            let tmdiff = simd_float2(tmmax.x - tmmin.x, tmmax.y - tmmin.y)
-//            var tpp2 = tmdiff / simd_abs(tm1 * simd_float2(Weight.dx[0], Weight.dy[0]) +
-//                                        tm2 * simd_float2(Weight.dx[1], Weight.dy[1]) +
-//                                        tm3 * simd_float2(Weight.dx[2], Weight.dy[2]))
-            //            let n = 30
-            //            if i == 3 * (n * 2 * (n >> 1) + n - 1) {
-            //                print("foo")
-            //            }
-//            if xmin < xmax && ((xmin + 1)..<xmax).contains(480) && ymin < ymax && (ymin..<ymax).contains(293) {
-//                print("foo")
-//            }
-//            let dzy = simd_dot(rvz, Weight.dy / 2)
-//            let l = tm1.y * Weight.dy[0] / 2 + tm2.y * Weight.dy[1]/2 + tm3.y * Weight.dy[2]/2
             let dz = simd_float2(simd_dot(rvz, Weight.dx), simd_dot(rvz, Weight.dy))
             let tpp = (tm1 * simd_float2(Weight.dx[0], Weight.dy[0]) +
                        tm2 * simd_float2(Weight.dx[1], Weight.dy[1]) +
                        tm3 * simd_float2(Weight.dx[2], Weight.dy[2]))
-//            let ll = (tm1.y * Weight.dy[0] + tm2.y * Weight.dy[1] + tm3.y * Weight.dy[2]) / simd_dot(rvz, Weight.dy)
-//            let lll = (tm1 * Weight.dy[0] + tm2 * Weight.dy[1] + tm3 * Weight.dy[2]) / simd_float2(simd_dot(rvz, Weight.dx), simd_dot(rvz, Weight.dy))
             getColor = { w, z in
-//                let z1 = z - dzy
-//                let z2 = z + dzy
-//                let y1 = (tm1.y * (Weight.w[0] - Weight.dy[0]/2) + tm2.y * (Weight.w[1] - Weight.dy[1]/2) + tm3.y * (Weight.w[2] - Weight.dy[2]/2)) / z1
-//                let y2 = (tm1.y * (Weight.w[0] + Weight.dy[0]/2) + tm2.y * (Weight.w[1] + Weight.dy[1]/2) + tm3.y * (Weight.w[2] + Weight.dy[2]/2)) / z2
-//                let diff = y2 - y1
-//                let k = tm1.y * Weight.w[0] + tm2.y * Weight.w[1] + tm3.y * Weight.w[2]
                 let mapping = tm1 * w[0] + tm2 * w[1] + tm3 * w[2]
-//                let my = z1 * z2 / (2 * z * l - 2 * k * dzy)
-//                let my2 = 1 / ((k + l) / z2 - (k - l) / z1)
-//                let my3 = z1 * z2 / ((k + l) * z1 - (k - l) * z2)
-//                let my4 = (z - dzy * dzy / z) / (2 * l - 2 * foo.y * dzy )
-//                let my5 = 0.5 * (z / dzy - dzy / z) / (l / dzy - foo.y)
-//                let my6 = 0.5 * (z / dzy - dzy / z) / (ll - foo.y)
-//                let my7 = 0.5 * (z / dzy - dzy / z) / (lll - foo)
-                let my8 = z / simd_abs(tpp - mapping * dz)
-//                if abs(my8.y - tpp.y * z) > 5 {
-//                    
-//                }
-//                let zz = simd_dot(rvz, Weight.w - Weight.dy)
-//                let ww = (tm1.y * (Weight.w[0] - Weight.dy[0]) + tm2.y * (Weight.w[1] - Weight.dy[1]) + tm3.y * (Weight.w[2] - Weight.dy[2])) / zz
-//                let x1 = (tm1.x * (Weight.w[0] - Weight.dx[0]/2) + tm2.x * (Weight.w[1] - Weight.dx[1]/2) + tm3.x * (Weight.w[2] - Weight.dx[2]/2)) / z
-//                let x2 = (tm1.x * (Weight.w[0] + Weight.dx[0]/2) + tm2.x * (Weight.w[1] + Weight.dx[1]/2) + tm3.x * (Weight.w[2] + Weight.dx[2]/2)) / z
-//                let dx = (tm1.x * Weight.dx[0] + tm2.x * Weight.dx[1] + tm3.x * Weight.dx[2]) / z
-//                let dy = (tm1.y * Weight.dy[0] + tm2.y * Weight.dy[1] + tm3.y * Weight.dy[2]) / z
-                return getTextureColor(buffer, mapping, my8)
+                let level = z / simd_abs(tpp - mapping * dz)
+                return getTextureColor(buffer, mapping, level)
             }
         } else { fatalError() }
         
-        for y in ymin...ymax {
-            for x in xmin...xmax {
+        for _ in ymin...ymax {
+            for _ in xmin...xmax {
                 if Weight.w[0] >= 0 && Weight.w[1] >= 0 && Weight.w[2] >= 0 {
                     let z = simd_dot(rvz, Weight.w)
                     if z > Pointers.dBuffer.pointee {
@@ -296,9 +251,6 @@ func updateAndRender(_ pixelData: inout PixelData, _ input: inout Input) {
                         let point = -simd_fast_normalize(p1 * w[0] + p2 * w[1] + p3 * w[2])
                         let normal = simd_fast_normalize(n1 * w[0] + n2 * w[1] + n3 * w[2])
                         let halfway = simd_fast_normalize(point + normal)
-                        if x == 480 && y == 293 {
-//                            print("foo")
-                        }
                         let shadedColor = simd_dot(halfway, normal) * getColor(w, z)
 //                        let shadedColor = getColor(w, z)
                         Pointers.pBuffer.pointee = RGB(shadedColor)

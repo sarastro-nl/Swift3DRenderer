@@ -6,10 +6,10 @@
 
 typedef struct {
     uint32_t *buffer;
-    int32_t width;
-    int32_t height;
-    int32_t bytesPerPixel;
-    int32_t bufferSize;
+    uint32_t width;
+    uint32_t height;
+    uint32_t bytesPerPixel;
+    uint32_t bufferSize;
 } PixelData;
 
 typedef struct {

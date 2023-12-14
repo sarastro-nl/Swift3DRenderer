@@ -12,10 +12,10 @@ import simd
 #if !CPP
 struct PixelData {
     var buffer: UnsafeMutablePointer<UInt32>
-    var width: Int32
-    var height: Int32
-    let bytesPerPixel: Int32
-    var bufferSize: Int32
+    var width: UInt32
+    var height: UInt32
+    let bytesPerPixel: UInt32
+    var bufferSize: UInt32
 }
 
 struct Input {
@@ -164,8 +164,8 @@ class ViewController: PlatformController {
 //        frameSize.width *= scale
 //        frameSize.height *= scale
         metalLayer.drawableSize = frameSize
-        pixelData.width = Int32(frameSize.width)
-        pixelData.height = Int32(frameSize.height)
+        pixelData.width = UInt32(frameSize.width)
+        pixelData.height = UInt32(frameSize.height)
         pixelData.bufferSize = pixelData.bytesPerPixel * pixelData.width * pixelData.height
         bufferMemory = unsafeBitCast(realloc(bufferMemory, 2 * Int(pixelData.bufferSize)), to: UnsafeMutablePointer<UInt32>.self)
     }
