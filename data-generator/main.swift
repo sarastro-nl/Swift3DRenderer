@@ -197,7 +197,7 @@ func addSimpleFloor() {
         simd_float3(Float(a) / 2.0, -0.5, -2.0),
     ])
     let ppm = 2
-    let scale: Float = 30 / Float(a)
+    let scale: Float = 15 / Float(a)
     vertexIndexes.append(contentsOf: [i, i + 1, i + 2, i + 2, i + 1, i + 3])
     let t1 = simd_float2(0, 0)
     let t2 = simd_float2(Float(a) * scale, 0)
@@ -372,11 +372,11 @@ func addIcosahedron() {
     attributeIndexes.append(contentsOf: j..<(j + 60))
 }
 
-addRegularFloor()
-//addSimpleFloor()
-//for _ in 0..<1 { addTriangle() }
-//for _ in 0..<2 { addTetrahedron() }
-//for _ in 0..<2 { addIcosahedron() }
+//addRegularFloor()
+addSimpleFloor()
+for _ in 0..<1 { addTriangle() }
+for _ in 0..<2 { addTetrahedron() }
+for _ in 0..<2 { addIcosahedron() }
 
 let directory = String(#file.prefix(upTo: #file.lastIndex(of: "/")!))
 let dataPath = directory + "/data.bin"

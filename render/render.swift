@@ -51,7 +51,7 @@ enum ColorAttribute {
 
 struct VertexAttribute {
     let normal: simd_float4
-    let colorAttribute: ColorAttribute
+    var colorAttribute: ColorAttribute
 }
 
 private struct Weight {
@@ -100,7 +100,7 @@ private func getTextureColor(_ buffer: UnsafePointer<UInt32>, _ uv: simd_float2,
     return simd_float3(Float(rgb >> 16), Float((rgb >> 8) & 255), Float(rgb & 255))
 }
 
-private func updateCamera(_ input: inout Input) {
+private func updateCamera(_ input: inout Input, _ forceUpdate: Bool = false) {
     var changed = false
     if input.left > 0 || input.right > 0 || input.up > 0 || input.down > 0 {
         changed = true
@@ -117,7 +117,7 @@ private func updateCamera(_ input: inout Input) {
         State.cameraAxis.z = z
         State.mouse = input.mouse
     }
-    if changed {
+    if changed || forceUpdate {
         State.cameraMatrix = simd_float4x3(rows: [simd_float4(State.cameraAxis.x, -simd_dot(State.cameraAxis.x, State.cameraPosition)),
                                                   simd_float4(State.cameraAxis.y, -simd_dot(State.cameraAxis.y, State.cameraPosition)),
                                                   simd_float4(State.cameraAxis.z, -simd_dot(State.cameraAxis.z, State.cameraPosition))])
@@ -134,25 +134,25 @@ func initialize() {
     Scene.vertexCount = count.pointee
     Scene.vertices = .allocate(capacity: Scene.vertexCount)
     reader.read(Scene.vertices, maxLength: count.pointee * MemoryLayout<simd_float4>.stride)
-    Scene.cameraVertices = .allocate(capacity: count.pointee)
-    Scene.rasterVertices = .allocate(capacity: count.pointee)
+    Scene.cameraVertices = .allocate(capacity: 2 * count.pointee)
+    Scene.rasterVertices = .allocate(capacity: 2 * count.pointee)
 
     reader.read(count, maxLength: 16)
     Scene.vertexIndicesCount = count.pointee
     var alignedCount = Scene.vertexIndicesCount + Scene.vertexIndicesCount % 2
-    Scene.vertexIndices = .allocate(capacity: alignedCount)
+    Scene.vertexIndices = .allocate(capacity: 2 * alignedCount)
     reader.read(Scene.vertexIndices, maxLength: alignedCount * MemoryLayout<Int>.stride)
     
     reader.read(count, maxLength: 16)
     Scene.attributesCount = count.pointee
-    Scene.attributes = .allocate(capacity: Scene.attributesCount)
+    Scene.attributes = .allocate(capacity: 2 * Scene.attributesCount)
     reader.read(Scene.attributes, maxLength: Scene.attributesCount * MemoryLayout<VertexAttribute>.stride)
-    Scene.normals = .allocate(capacity: Scene.attributesCount)
+    Scene.normals = .allocate(capacity: 2 * Scene.attributesCount)
     
     reader.read(count, maxLength: 16)
     Scene.attributeIndicesCount = count.pointee
     alignedCount = Scene.attributeIndicesCount + Scene.attributeIndicesCount % 2
-    Scene.attributeIndices = .allocate(capacity: alignedCount)
+    Scene.attributeIndices = .allocate(capacity: 2 * alignedCount)
     reader.read(Scene.attributeIndices, maxLength: alignedCount * MemoryLayout<Int>.stride)
 
     reader.read(count, maxLength: 16)
@@ -164,8 +164,10 @@ func updateAndRender(_ pixelData: inout PixelData, _ input: inout Input) {
     if !Config.initialized {
         Config.initialized = true
         initialize()
+        updateCamera(&input, true)
+    } else {
+        updateCamera(&input)
     }
-    updateCamera(&input)
 
     let depthBufferSize = Int(pixelData.width * pixelData.height) * MemoryLayout<Float>.size
     if DepthBuffer.bufferSize != depthBufferSize {
@@ -180,23 +182,93 @@ func updateAndRender(_ pixelData: inout PixelData, _ input: inout Input) {
     for (i, vertex) in UnsafeBufferPointer(start: Scene.vertices, count: Scene.vertexCount).enumerated() {
         let v = simd_mul(State.cameraMatrix, vertex)
         Scene.cameraVertices[i] = v
-        if v.z > -Config.near {
-            Scene.rasterVertices[i] = simd_float3.zero
-        } else {
-            Scene.rasterVertices[i] = simd_float3(v.x, -v.y, 0) * Config.factor / -v.z + simd_float3(screenSize / 2, -v.z)
-        }
+        Scene.rasterVertices[i] = simd_float3(v.x, -v.y, 0) * Config.factor / -v.z + simd_float3(screenSize / 2, -v.z)
     }
     for (i, attribute) in UnsafeBufferPointer(start: Scene.attributes, count: Scene.attributesCount).enumerated() {
         Scene.normals[i] = simd_mul(State.cameraMatrix, attribute.normal)
     }
-    for i in stride(from: 0, to: Scene.vertexIndicesCount, by: 3) {
-        let (vi1, vi2, vi3) = (Scene.vertexIndices[i], Scene.vertexIndices[i + 1], Scene.vertexIndices[i + 2])
-        let (rv1, rv2, rv3) = (Scene.rasterVertices[vi1], Scene.rasterVertices[vi2], Scene.rasterVertices[vi3])
-        let rvmin = simd_min(simd_min(rv1, rv2), rv3)
-        if rvmin.x >= screenSize[0] || rvmin.y >= screenSize[1] || rvmin.z < Config.near { continue }
-        let rvmax = simd_max(simd_max(rv1, rv2), rv3)
+    var index = 0
+    var vertexIndicesCount = Scene.vertexIndicesCount
+    var vertexCount = Scene.vertexCount
+    var attributeCount = Scene.attributesCount
+    while index < vertexIndicesCount {
+        defer { index += 3 }
+        let vi = [Scene.vertexIndices[index], Scene.vertexIndices[index + 1], Scene.vertexIndices[index + 2]]
+        var rv = [Scene.rasterVertices[vi[0]], Scene.rasterVertices[vi[1]], Scene.rasterVertices[vi[2]]]
+        if max(max(rv[0].z, rv[1].z), rv[2].z) <= Config.near { continue }
+
+        var cv = [Scene.cameraVertices[vi[0]], Scene.cameraVertices[vi[1]], Scene.cameraVertices[vi[2]]]
+        let ai = [Scene.attributeIndices[index], Scene.attributeIndices[index + 1], Scene.attributeIndices[index + 2]]
+        var ac = [Scene.attributes[ai[0]].colorAttribute, Scene.attributes[ai[1]].colorAttribute, Scene.attributes[ai[2]].colorAttribute]
+        var n = [Scene.normals[ai[0]], Scene.normals[ai[1]], Scene.normals[ai[2]]]
+        if min(min(rv[0].z, rv[1].z), rv[2].z) < Config.near {
+            var cvNew = Array(repeating: simd_float3.zero, count: 3)
+            var rvNew = Array(repeating: simd_float3.zero, count: 3)
+            var acNew = Array(repeating: ColorAttribute.color(simd_float3.zero), count: 3)
+            var nNew = Array(repeating: simd_float3.zero, count: 3)
+            var viCurrent = 0
+            var viNext = 0
+            var viPreceding = 0
+            var newTriangle = false
+            for i in 0..<3 {
+                let iNext = (i + 1) % 3
+                if (rv[i].z > Config.near) == (rv[iNext].z > Config.near) {
+                    viCurrent = i; viNext = iNext; viPreceding = (i + 2) % 3
+                    newTriangle = rv[i].z > Config.near
+                } else {
+                    let a = (Config.near - rv[i].z) / (rv[iNext].z - rv[i].z)
+                    let v = cv[i] * (1 - a) + cv[iNext] * a
+                    cvNew[i] = v
+                    rvNew[i] = simd_float3(v.x, -v.y, 0) * Config.factor / -v.z + simd_float3(screenSize / 2, Config.near)
+                    if case .color(let c1) = ac[i], case .color(let c2) = ac[iNext] {
+                        acNew[i] = .color(c1 * (1 - a) + c2 * a)
+                    } else if case .texture(let t1) = ac[i], case .texture(let t2) = ac[iNext] {
+                        acNew[i] = .texture(Texture(index: t1.index, uv: t1.uv * (1 - a) + t2.uv * a))
+                    }
+                    nNew[i] = n[i] * (1 - a) + n[iNext] * a
+                }
+            }
+            if newTriangle {
+                cv[viPreceding] = cvNew[viNext]
+                rv[viPreceding] = rvNew[viNext]
+                ac[viPreceding] = acNew[viNext]
+                n[viPreceding] = nNew[viNext]
+                let j = vertexCount
+                let k = attributeCount
+                Scene.cameraVertices[j] = cvNew[viNext]
+                Scene.rasterVertices[j] = rvNew[viNext]
+                Scene.attributes[k].colorAttribute = acNew[viNext]
+                Scene.normals[k] = nNew[viNext]
+                Scene.cameraVertices[j + 1] = cvNew[viPreceding]
+                Scene.rasterVertices[j + 1] = rvNew[viPreceding]
+                Scene.attributes[k + 1].colorAttribute = acNew[viPreceding]
+                Scene.normals[k + 1] = nNew[viPreceding]
+                Scene.vertexIndices[vertexIndicesCount] = vi[viCurrent]
+                Scene.vertexIndices[vertexIndicesCount + 1] = j
+                Scene.vertexIndices[vertexIndicesCount + 2] = j + 1
+                Scene.attributeIndices[vertexIndicesCount] = ai[viCurrent]
+                Scene.attributeIndices[vertexIndicesCount + 1] = k
+                Scene.attributeIndices[vertexIndicesCount + 2] = k + 1
+                vertexCount += 2
+                attributeCount += 2
+                vertexIndicesCount += 3
+            } else {
+                cv[viCurrent] = cvNew[viPreceding]
+                rv[viCurrent] = rvNew[viPreceding]
+                ac[viCurrent] = acNew[viPreceding]
+                n[viCurrent] = nNew[viPreceding]
+                cv[viNext] = cvNew[viNext]
+                rv[viNext] = rvNew[viNext]
+                ac[viNext] = acNew[viNext]
+                n[viNext] = nNew[viNext]
+            }
+        }
+        let rvmax = simd_max(simd_max(rv[0], rv[1]), rv[2])
         if rvmax.x < 0 || rvmax.y < 0 { continue }
-        let area = edgeFunction(rv1, rv2, rv3)
+        let rvmin = simd_min(simd_min(rv[0], rv[1]), rv[2])
+        if rvmin.x >= screenSize[0] || rvmin.y >= screenSize[1] { continue }
+
+        let area = edgeFunction(rv[0], rv[1], rv[2])
         if area < 10 { continue }
         let oneOverArea = 1 / area
         let xmin = Int(fmax(0, rvmin.x))
@@ -204,28 +276,26 @@ func updateAndRender(_ pixelData: inout PixelData, _ input: inout Input) {
         let ymin = Int(fmax(0, rvmin.y))
         let ymax = Int(fmin(screenSize[1] - 1, rvmax.y))
         let pStart = simd_float3(Float(xmin) + 0.5, Float(ymin) + 0.5, 0)
-        let wStart = simd_float3(edgeFunction(rv2, rv3, pStart), edgeFunction(rv3, rv1, pStart), edgeFunction(rv1, rv2, pStart)) * oneOverArea
+        let wStart = simd_float3(edgeFunction(rv[1], rv[2], pStart), edgeFunction(rv[2], rv[0], pStart), edgeFunction(rv[0], rv[1], pStart)) * oneOverArea
         Weight.w = wStart
         Weight.wy = wStart
-        Weight.dx = simd_float3(rv2.y - rv3.y, rv3.y - rv1.y, rv1.y - rv2.y) * oneOverArea
-        Weight.dy = simd_float3(rv3.x - rv2.x, rv1.x - rv3.x, rv2.x - rv1.x) * oneOverArea
+        Weight.dx = simd_float3(rv[1].y - rv[2].y, rv[2].y - rv[0].y, rv[0].y - rv[1].y) * oneOverArea
+        Weight.dy = simd_float3(rv[2].x - rv[1].x, rv[0].x - rv[2].x, rv[1].x - rv[0].x) * oneOverArea
         let bufferStart = ymin * Int(pixelData.width) + xmin
         Pointers.pBuffer = pixelData.buffer + bufferStart
         Pointers.dBuffer = DepthBuffer.buffer + bufferStart
         Pointers.xDelta = Int(pixelData.width) - xmax + xmin - 1
         
-        let (ai1, ai2, ai3) = (Scene.attributeIndices[i], Scene.attributeIndices[i + 1], Scene.attributeIndices[i + 2])
-        let (a1, a2, a3) = (Scene.attributes[ai1], Scene.attributes[ai2], Scene.attributes[ai3])
-        let rvz = 1 / simd_float3(rv1.z, rv2.z, rv3.z)
-        let (n1, n2, n3) = (Scene.normals[ai1] * rvz[0], Scene.normals[ai2] * rvz[1], Scene.normals[ai3] * rvz[2])
-        let (p1, p2, p3) = (Scene.cameraVertices[vi1] * rvz[0], Scene.cameraVertices[vi2] * rvz[1], Scene.cameraVertices[vi3] * rvz[2])
+        let rvz = 1 / simd_float3(rv[0].z, rv[1].z, rv[2].z)
+        let p = [cv[0] * rvz[0], cv[1] * rvz[1], cv[2] * rvz[2]]
+        n = [n[0] * rvz[0], n[1] * rvz[1], n[2] * rvz[2]]
         let getColor: (simd_float3, Float) -> simd_float3
-        if case .color(let c1) = a1.colorAttribute, case .color(let c2) = a2.colorAttribute, case .color(let c3) = a3.colorAttribute {
+        if case .color(let c1) = ac[0], case .color(let c2) = ac[1], case .color(let c3) = ac[2] {
             let cc1 = c1 * rvz[0]
             let cc2 = c2 * rvz[1]
             let cc3 = c3 * rvz[2]
             getColor = { w, _ in cc1 * w[0] + cc2 * w[1] + cc3 * w[2] }
-        } else if case .texture(let t1) = a1.colorAttribute, case .texture(let t2) = a2.colorAttribute, case .texture(let t3) = a3.colorAttribute {
+        } else if case .texture(let t1) = ac[0], case .texture(let t2) = ac[1], case .texture(let t3) = ac[2] {
             let buffer = Textures.buffer + t1.index << 18
             let tm1 = t1.uv * rvz[0]
             let tm2 = t2.uv * rvz[1]
@@ -248,11 +318,10 @@ func updateAndRender(_ pixelData: inout PixelData, _ input: inout Input) {
                     if z > Pointers.dBuffer.pointee {
                         Pointers.dBuffer.pointee = z
                         let w = Weight.w / z
-                        let point = -simd_fast_normalize(p1 * w[0] + p2 * w[1] + p3 * w[2])
-                        let normal = simd_fast_normalize(n1 * w[0] + n2 * w[1] + n3 * w[2])
+                        let point = -simd_fast_normalize(p[0] * w[0] + p[1] * w[1] + p[2] * w[2])
+                        let normal = simd_fast_normalize(n[0] * w[0] + n[1] * w[1] + n[2] * w[2])
                         let halfway = simd_fast_normalize(point + normal)
                         let shadedColor = simd_dot(halfway, normal) * getColor(w, z)
-//                        let shadedColor = getColor(w, z)
                         Pointers.pBuffer.pointee = RGB(shadedColor)
                     }
                 }
