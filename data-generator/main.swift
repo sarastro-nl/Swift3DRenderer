@@ -98,9 +98,9 @@ func addTriangle() {
         //        VertexAttribute(normal(v, 0, 1, 2), .color(red)),
         //        VertexAttribute(normal(v, 0, 1, 2), .color(orange)),
         //        VertexAttribute(normal(v, 0, 1, 2), .color(blue)),
-        VertexAttribute(normal(v, 0, 1, 2), .texture(Texture(0, simd_float2(0, sqrt(3)/2)))),
-        VertexAttribute(normal(v, 0, 1, 2), .texture(Texture(0, simd_float2(0.5, 0)))),
-        VertexAttribute(normal(v, 0, 1, 2), .texture(Texture(0, simd_float2(1, sqrt(3)/2)))),
+        VertexAttribute(normal(v, 0, 1, 2), .texture(Texture(1, simd_float2(0, sqrt(3)/2)))),
+        VertexAttribute(normal(v, 0, 1, 2), .texture(Texture(1, simd_float2(0.5, 0)))),
+        VertexAttribute(normal(v, 0, 1, 2), .texture(Texture(1, simd_float2(1, sqrt(3)/2)))),
     ])
     attributeIndexes.append(contentsOf: j..<(j + 3))
 }
@@ -114,7 +114,7 @@ func addRegularFloor() {
             vertices.append(simd_float3(Float(x) - Float(a) / 2 + extra, -0.5, -Float(z) - 2))
         }
     }
-    let ppm = 2
+    let ppm = 1
     let scale: Float = 1
     for z in 0..<a {
         let a1 = i + z * (a + 1)
@@ -196,7 +196,7 @@ func addSimpleFloor() {
         simd_float3(-Float(a) / 2.0, -0.5, -2.0),
         simd_float3(Float(a) / 2.0, -0.5, -2.0),
     ])
-    let ppm = 2
+    let ppm = 0
     let scale: Float = 15 / Float(a)
     vertexIndexes.append(contentsOf: [i, i + 1, i + 2, i + 2, i + 1, i + 3])
     let t1 = simd_float2(0, 0)

@@ -56,11 +56,6 @@ class ViewController: PlatformController {
     var updateAndRender: updateAndRenderFunc!
 #endif
     
-    func RGB(_ r: Float, _ g: Float, _ b: Float) -> UInt32 {
-        guard r < 256, g < 256, b < 256 else { fatalError() }
-        return (256 * UInt32(r) + UInt32(g)) * 256 + UInt32(b)
-    }
-    
     override func viewDidLoad() {
         super.viewDidLoad()
 #if os(macOS)
@@ -155,7 +150,6 @@ class ViewController: PlatformController {
             print(String(format: "average: %.2f%%", totalPercentage / Double(nrOfSessions)))
             totalTime = 0
             loopNr = 0
-                  
         }
     }
     
@@ -201,9 +195,9 @@ _ = NSApplicationMain(CommandLine.argc, CommandLine.unsafeArgv)
 class MetalView: UIView { override class var layerClass: AnyClass { CAMetalLayer.self } }
 UIApplicationMain(CommandLine.argc, CommandLine.unsafeArgv, nil, NSStringFromClass(AppDelegate.self))
 #endif
+
 extension Bundle {
     var isCommandLine: Bool { FileManager.default.fileExists(atPath: Bundle.main.bundlePath + "/data-generator") }
-
 #if CPP
     var dylibPath: String {
         isCommandLine ? Bundle.main.bundlePath + "/render-cpp/render.dylib" : Bundle.main.privateFrameworksPath! + "/render_dylib.framework/render_dylib"

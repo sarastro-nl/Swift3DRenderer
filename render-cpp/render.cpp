@@ -4,6 +4,7 @@
 #include "render.hpp"
 
 extern "C" {
+#include <immintrin.h>
 
 #define RGB(r, g, b) (uint32_t)(((((uint8_t)(r) << 8) + (uint8_t)(g)) << 8) + (uint8_t)(b))
 #define EDGE_FUNCTION(a, b, c) ((c.x - a.x) * (a.y - b.y) + (c.y - a.y) * (b.x - a.x))
@@ -13,17 +14,26 @@ typedef struct {
     simd_float2 uv;
 } texture_t;
 
-typedef union {
-    simd_float3 color;
-    texture_t texture;
-} color_attribute_t;
-
 typedef enum { color = 0, texture } disc_t;
 
 typedef struct {
+    union {
+        simd_float3 color;
+        texture_t texture;
+    } u;
+    disc_t disc;
+} color_attribute_t;
+
+typedef struct {
+    simd_float3 cv;
+    simd_float3 rv;
+    color_attribute_t ca;
+    simd_float3 n;
+} data_t;
+
+typedef struct {
     const simd_float4 normal;
-    color_attribute_t color_attribute;
-    const disc_t disc;
+    color_attribute_t ca;
 } vertex_attribute_t;
 
 typedef struct {
@@ -41,7 +51,11 @@ typedef struct {
 
 static struct {
     simd_float3 camera_position;
-    struct { simd_float3 x; simd_float3 y; simd_float3 z; } camera_axis;
+    struct {
+        simd_float3 x;
+        simd_float3 y;
+        simd_float3 z;
+    } camera_axis;
     simd_float4x3 camera_matrix;
     simd_float2 mouse;
 } state = {
@@ -95,6 +109,7 @@ static struct {
     
     simd_float3 *camera_vertices;
     simd_float3 *raster_vertices;
+    color_attribute_t *color_attributes;
     simd_float3 *normals;
 } scene;
 
@@ -177,10 +192,14 @@ void initialize() {
     
     fread(count, sizeof(uint64_t), 2, fp);
     scene.attributes_count = *count;
-    scene.attributes = (vertex_attribute_t *)malloc(2 * *count * sizeof(vertex_attribute_t));
+    scene.attributes = (vertex_attribute_t *)malloc(*count * sizeof(vertex_attribute_t));
     fread(scene.attributes, sizeof(vertex_attribute_t), *count, fp);
+    scene.color_attributes = (color_attribute_t *)malloc(2 * *count * sizeof(color_attribute_t));
     scene.normals = (simd_float3 *)malloc(2 * *count * sizeof(simd_float3));
-
+    for (int i = 0; i < scene.attributes_count; i++) {
+        scene.color_attributes[i] = scene.attributes[i].ca;
+    }
+    
     fread(count, sizeof(uint64_t), 2, fp);
     scene.attribute_indices_count = *count;
     aligned_count = *count + (*count % 2);
@@ -190,6 +209,63 @@ void initialize() {
     fread(count, sizeof(uint64_t), 2, fp);
     texture_buffer.buffer = (uint32_t *)malloc(*count * sizeof(uint32_t));
     fread(texture_buffer.buffer, sizeof(uint32_t), *count, fp);
+}
+
+void clip(data_t *data, uint64_t *v_count, uint64_t *a_count, uint64_t *vi_count, const uint64_t *vi, const uint64_t *ai, const simd_float2 *screen_size) {
+    data_t data_new[3];
+    uint64_t vi_current = 0, vi_next = 0, vi_preceding = 0;
+    bool new_triangle = false;
+    for (uint32_t i = 0; i < 3; i++) {
+        uint32_t i_next = (i + 1) % 3;
+        if ((data[i].rv.z > config.near) == (data[i_next].rv.z > config.near)) {
+            vi_current = i; vi_next = i_next; vi_preceding = (i + 2) % 3;
+            new_triangle = data[i].rv.z > config.near;
+        } else {
+            float a = (config.near - data[i].rv.z) / (data[i_next].rv.z - data[i].rv.z);
+            simd_float3 cv = data[i].cv * (1 - a) + data[i_next].cv * a;
+            simd_float3 rv = simd_make_float3(cv.x, -cv.y, 0) * config.factor / config.near + simd_make_float3(*screen_size / 2, config.near);
+            color_attribute_t ca = {.disc = data[0].ca.disc};
+            switch (ca.disc) {
+                case color:
+                    ca.u.color = data[i].ca.u.color * (1 - a) + data[i_next].ca.u.color * a;
+                    break;
+                case texture:
+                    texture_t t1 = data[i].ca.u.texture;
+                    texture_t t2 = data[i_next].ca.u.texture;
+                    ca.u.texture = { .index = t1.index, .uv = t1.uv * (1 - a) + t2.uv * a};
+            }
+            simd_float3 n = data[i].n * (1 - a) + data[i_next].n * a;
+            data_new[i] = {cv, rv, ca, n};
+        }
+    }
+    if (new_triangle) {
+        data[vi_preceding] = data_new[vi_next];
+        scene.camera_vertices[*v_count] = data_new[vi_next].cv;
+        scene.raster_vertices[*v_count] = data_new[vi_next].rv;
+        scene.color_attributes[*a_count] = data_new[vi_next].ca;
+        scene.normals[*a_count] = data_new[vi_next].n;
+        scene.camera_vertices[*v_count + 1] = data_new[vi_preceding].cv;
+        scene.raster_vertices[*v_count + 1] = data_new[vi_preceding].rv;
+        scene.color_attributes[*a_count + 1] = data_new[vi_preceding].ca;
+        scene.normals[*a_count + 1] = data_new[vi_preceding].n;
+        scene.vertex_indices[*vi_count] = vi[vi_current];
+        scene.vertex_indices[*vi_count + 1] = *v_count;
+        scene.vertex_indices[*vi_count + 2] = *v_count + 1;
+        scene.attribute_indices[*vi_count] = ai[vi_current];
+        scene.attribute_indices[*vi_count + 1] = *a_count;
+        scene.attribute_indices[*vi_count + 2] = *a_count + 1;
+        *v_count += 2;
+        *a_count += 2;
+        *vi_count += 3;
+    } else {
+        data[vi_current] = data_new[vi_preceding];
+        data[vi_next] = data_new[vi_next];
+    }
+}
+
+static simd_float2 extracted(const PixelData *pixel_data) {
+    const simd_float2 size = simd_make_float2((float)pixel_data->width, (float)pixel_data->height);
+    return size;
 }
 
 __attribute__((visibility("default")))
@@ -212,114 +288,51 @@ void updateAndRender(const PixelData *pixel_data, const Input *input) {
     memset(depth_buffer.buffer, 0, depth_buffer.buffer_size);
     memset_pattern4(pixel_data->buffer, &config.background_color, pixel_data->bufferSize);
 
-    const simd_float2 size = simd_make_float2((float)pixel_data->width, (float)pixel_data->height);
+    const simd_float2 screen_size = extracted(pixel_data);
     for (uint32_t i = 0; i < scene.vertex_count; i++) {
         const simd_float3 v = simd_mul(state.camera_matrix, scene.vertices[i]);
         scene.camera_vertices[i] = v;
-        scene.raster_vertices[i] = simd_make_float3(v.x, -v.y, 0) * config.factor / -v.z + simd_make_float3(size / 2, -v.z);
+        scene.raster_vertices[i] = simd_make_float3(v.x, -v.y, 0) * config.factor / -v.z + simd_make_float3(screen_size / 2, -v.z);
     }
     for (uint32_t i = 0; i < scene.attributes_count; i++) {
         scene.normals[i] = simd_mul(state.camera_matrix, scene.attributes[i].normal);
     }
     
-    uint64_t vertexIndicesCount = scene.vertex_indices_count;
-    uint64_t vertexCount = scene.vertex_count;
-    uint64_t attributeCount = scene.attributes_count;
-    for (uint32_t index = 0; index < vertexIndicesCount; index += 3) {
+    uint64_t vertex_indices_count = scene.vertex_indices_count;
+    uint64_t vertex_count = scene.vertex_count;
+    uint64_t attribute_count = scene.attributes_count;
+    for (uint32_t index = 0; index < vertex_indices_count; index += 3) {
         const uint64_t vi[3] = {scene.vertex_indices[index], scene.vertex_indices[index + 1], scene.vertex_indices[index + 2]};
-        simd_float3 rv[3] = {scene.raster_vertices[vi[0]], scene.raster_vertices[vi[1]], scene.raster_vertices[vi[2]]};
-        if (fmaxf(fmaxf(rv[0].z, rv[1].z), rv[2].z) <= config.near) { continue; }
-
-        simd_float3 cv[3] = {scene.camera_vertices[vi[0]], scene.camera_vertices[vi[1]], scene.camera_vertices[vi[2]]};
         const uint64_t ai[3] = {scene.attribute_indices[index], scene.attribute_indices[index + 1], scene.attribute_indices[index + 2]};
-        color_attribute_t ac[3] = {scene.attributes[ai[0]].color_attribute, scene.attributes[ai[1]].color_attribute, scene.attributes[ai[2]].color_attribute};
-        simd_float3 n[3] = {scene.normals[ai[0]], scene.normals[ai[1]], scene.normals[ai[2]]};
-
-        if (fmin(fmin(rv[0].z, rv[1].z), rv[2].z) < config.near) {
-            simd_float3 cv_new[3];
-            simd_float3 rv_new[3];
-            color_attribute_t ac_new[3];
-            simd_float3 n_new[3];
-            uint32_t viCurrent = 0;
-            uint32_t viNext = 0;
-            uint32_t viPreceding = 0;
-            bool newTriangle = false;
-            for (uint32_t i = 0; i < 3; i++) {
-                uint32_t iNext = (i + 1) % 3;
-                if ((rv[i].z > config.near) == (rv[iNext].z > config.near)) {
-                    viCurrent = i; viNext = iNext; viPreceding = (i + 2) % 3;
-                    newTriangle = rv[i].z > config.near;
-                } else {
-                    float a = (config.near - rv[i].z) / (rv[iNext].z - rv[i].z);
-                    simd_float3 v = cv[i] * (1 - a) + cv[iNext] * a;
-                    cv_new[i] = v;
-                    rv_new[i] = simd_make_float3(v.x, -v.y, 0) * config.factor / -v.z + simd_make_float3(size / 2, config.near);
-                    disc_t disc = scene.attributes[ai[i]].disc;
-                    if (disc == color) {
-                        simd_float3 c1 = ac[i].color;
-                        simd_float3 c2 = ac[iNext].color;
-                        ac_new[i].color = c1 * (1 - a) + c2 * a;
-                    } else if (disc == texture) {
-                        texture_t t1 = ac[i].texture;
-                        texture_t t2 = ac[iNext].texture;
-                        ac_new[i].texture = { .index = t1.index, .uv = t1.uv * (1 - a) + t2.uv * a};
-                    } else { exit(999); }
-                    n_new[i] = n[i] * (1 - a) + n[iNext] * a;
-                }
-            }
-            if (newTriangle) {
-                cv[viPreceding] = cv_new[viNext];
-                rv[viPreceding] = rv_new[viNext];
-                ac[viPreceding] = ac_new[viNext];
-                n[viPreceding] = n_new[viNext];
-                uint64_t j = vertexCount;
-                uint64_t k = attributeCount;
-                scene.camera_vertices[j] = cv_new[viNext];
-                scene.raster_vertices[j] = rv_new[viNext];
-                scene.attributes[k].color_attribute = ac_new[viNext];
-                scene.normals[k] = n_new[viNext];
-                scene.camera_vertices[j + 1] = cv_new[viPreceding];
-                scene.raster_vertices[j + 1] = rv_new[viPreceding];
-                scene.attributes[k + 1].color_attribute = ac_new[viPreceding];
-                scene.normals[k + 1] = n_new[viPreceding];
-                scene.vertex_indices[vertexIndicesCount] = vi[viCurrent];
-                scene.vertex_indices[vertexIndicesCount + 1] = j;
-                scene.vertex_indices[vertexIndicesCount + 2] = j + 1;
-                scene.attribute_indices[vertexIndicesCount] = ai[viCurrent];
-                scene.attribute_indices[vertexIndicesCount + 1] = k;
-                scene.attribute_indices[vertexIndicesCount + 2] = k + 1;
-                vertexCount += 2;
-                attributeCount += 2;
-                vertexIndicesCount += 3;
-            } else {
-                cv[viCurrent] = cv_new[viPreceding];
-                rv[viCurrent] = rv_new[viPreceding];
-                ac[viCurrent] = ac_new[viPreceding];
-                n[viCurrent] = n_new[viPreceding];
-                cv[viNext] = cv_new[viNext];
-                rv[viNext] = rv_new[viNext];
-                ac[viNext] = ac_new[viNext];
-                n[viNext] = n_new[viNext];
-            }
+        data_t data[3] = {
+            {scene.camera_vertices[vi[0]], scene.raster_vertices[vi[0]], scene.color_attributes[ai[0]], scene.normals[ai[0]]},
+            {scene.camera_vertices[vi[1]], scene.raster_vertices[vi[1]], scene.color_attributes[ai[1]], scene.normals[ai[1]]},
+            {scene.camera_vertices[vi[2]], scene.raster_vertices[vi[2]], scene.color_attributes[ai[2]], scene.normals[ai[2]]},
+        };
+        
+        if (fmaxf(fmaxf(data[0].rv.z, data[1].rv.z), data[2].rv.z) <= config.near) { continue; }
+        
+        if (fmin(fmin(data[0].rv.z, data[1].rv.z), data[2].rv.z) < config.near) {
+            clip(data, &vertex_count, &attribute_count, &vertex_indices_count, vi, ai, &screen_size);
         }
-        const simd_float3 rvmax = simd_max(simd_max(rv[0], rv[1]), rv[2]);
+        const simd_float3 rvmax = simd_max(simd_max(data[0].rv, data[1].rv), data[2].rv);
         if (rvmax.x < 0 || rvmax.y < 0) { continue; }
-        const simd_float3 rvmin = simd_min(simd_min(rv[0], rv[1]), rv[2]);
-        if (rvmin.x >= size[0] || rvmin.y >= size[1]) { continue; }
+        const simd_float3 rvmin = simd_min(simd_min(data[0].rv, data[1].rv), data[2].rv);
+        if (rvmin.x >= screen_size[0] || rvmin.y >= screen_size[1]) { continue; }
             
-        const float area = EDGE_FUNCTION(rv[0], rv[1], rv[2]);
-        if (area < 10) { continue; }
+        const float area = EDGE_FUNCTION(data[0].rv, data[1].rv, data[2].rv);
+        if (area < 10) { continue; } // too small to waiste time rendering it
         const float oneOverArea = 1 / area;
         const uint32_t xmin = (uint32_t)fmaxf(0, rvmin.x);
-        const uint32_t xmax = (uint32_t)fmin(size[0] - 1, rvmax.x);
+        const uint32_t xmax = (uint32_t)fmin(screen_size[0] - 1, rvmax.x);
         const uint32_t ymin = (uint32_t)fmaxf(0, rvmin.y);
-        const uint32_t ymax = (uint32_t)fmin(size[1] - 1, rvmax.y);
+        const uint32_t ymax = (uint32_t)fmin(screen_size[1] - 1, rvmax.y);
         const simd_float2 pStart = simd_make_float2((float)xmin + 0.5f, (float)ymin + 0.5f);
-        const simd_float3 wstart = simd_make_float3(EDGE_FUNCTION(rv[1], rv[2], pStart), EDGE_FUNCTION(rv[2], rv[0], pStart), EDGE_FUNCTION(rv[0], rv[1], pStart)) * oneOverArea;
+        const simd_float3 wstart = simd_make_float3(EDGE_FUNCTION(data[1].rv, data[2].rv, pStart), EDGE_FUNCTION(data[2].rv, data[0].rv, pStart), EDGE_FUNCTION(data[0].rv, data[1].rv, pStart)) * oneOverArea;
         weight_t weight = {
             .w = wstart, .wy = wstart,
-            .dx = simd_make_float3(rv[1].y - rv[2].y, rv[2].y - rv[0].y, rv[0].y - rv[1].y) * oneOverArea,
-            .dy = simd_make_float3(rv[2].x - rv[1].x, rv[0].x - rv[2].x, rv[1].x - rv[0].x) * oneOverArea };
+            .dx = simd_make_float3(data[1].rv.y - data[2].rv.y, data[2].rv.y - data[0].rv.y, data[0].rv.y - data[1].rv.y) * oneOverArea,
+            .dy = simd_make_float3(data[2].rv.x - data[1].rv.x, data[0].rv.x - data[2].rv.x, data[1].rv.x - data[0].rv.x) * oneOverArea };
         const uint32_t bufferStart = ymin * pixel_data->width + xmin;
         pointers_t pointers = {
             .pbuffer = pixel_data->buffer + bufferStart,
@@ -327,34 +340,30 @@ void updateAndRender(const PixelData *pixel_data, const Input *input) {
             .xDelta = pixel_data->width - xmax + xmin - 1,
         };
         
-        const simd_float3 rvz = 1 / simd_make_float3(rv[0].z, rv[1].z, rv[2].z);
-        const simd_float3 p[3] = {cv[0] * rvz[0], cv[1] * rvz[1], cv[2] * rvz[2]};
-        n[0] *= rvz[0];
-        n[1] *= rvz[1];
-        n[2] *= rvz[2];
+        const simd_float3 rvz = 1 / simd_make_float3(data[0].rv.z, data[1].rv.z, data[2].rv.z);
+        const simd_float3 cv[3] = {data[0].cv * rvz[0], data[1].cv * rvz[1], data[2].cv * rvz[2]};
+        const simd_float3 n[3] = {data[0].n * rvz[0], data[1].n * rvz[1], data[2].n * rvz[2]};
         std::function<simd_float3(simd_float3, float)> getColor;
-        disc_t disc = scene.attributes[ai[0]].disc;
-        if (disc == color) {
-            const simd_float3 cc1 = ac[0].color * rvz[0];
-            const simd_float3 cc2 = ac[1].color * rvz[1];
-            const simd_float3 cc3 = ac[2].color * rvz[2];
-            getColor = [cc1, cc2, cc3] (const simd_float3 w, const float z) { (void)z;return cc1 * w[0] + cc2 * w[1] + cc3 * w[2];};
-        } else if (disc == texture) {
-            uint32_t *buffer = texture_buffer.buffer + ((int32_t)ac[0].texture.index << 18);
-            const simd_float2 tm1 = ac[0].texture.uv * rvz[0];
-            const simd_float2 tm2 = ac[1].texture.uv * rvz[1];
-            const simd_float2 tm3 = ac[2].texture.uv * rvz[2];
-            const simd_float2 dz = simd_make_float2(simd_dot(rvz, weight.dx), simd_dot(rvz, weight.dy));
-            const simd_float2 tpp = (tm1 * simd_make_float2(weight.dx[0], weight.dy[0]) +
-                                     tm2 * simd_make_float2(weight.dx[1], weight.dy[1]) +
-                                     tm3 * simd_make_float2(weight.dx[2], weight.dy[2]));
-            getColor = [buffer, tm1, tm2, tm3, dz, tpp] (const simd_float3 w, const float z) {
-                const simd_float2 mapping = tm1 * w[0] + tm2 * w[1] + tm3 * w[2];
-                const simd_float2 level = z / simd_abs(tpp - mapping * dz);
-                return getTextureColor(buffer, mapping, level);
-            };
-        } else { exit(999); }
-
+        switch (data[0].ca.disc) {
+            case color: {
+                const simd_float3 cc[3] = {data[0].ca.u.color * rvz[0], data[1].ca.u.color * rvz[1], data[2].ca.u.color * rvz[2]};
+                getColor = [cc] (const simd_float3 w, const float z) { (void)z;return cc[0] * w[0] + cc[1] * w[1] + cc[2] * w[2];};
+                break;
+            }
+            case texture: {
+                uint32_t *buffer = texture_buffer.buffer + ((int32_t)data[0].ca.u.texture.index << 18); // jump to right texture image
+                const simd_float2 uv[3] = {data[0].ca.u.texture.uv * rvz[0], data[1].ca.u.texture.uv * rvz[1], data[2].ca.u.texture.uv * rvz[2]};
+                const simd_float2 dz = simd_make_float2(simd_dot(rvz, weight.dx), simd_dot(rvz, weight.dy));
+                const simd_float2 tpp = (uv[0] * simd_make_float2(weight.dx[0], weight.dy[0]) +
+                                         uv[1] * simd_make_float2(weight.dx[1], weight.dy[1]) +
+                                         uv[2] * simd_make_float2(weight.dx[2], weight.dy[2]));
+                getColor = [buffer, uv, dz, tpp] (const simd_float3 w, const float z) {
+                    const simd_float2 mapping = uv[0] * w[0] + uv[1] * w[1] + uv[2] * w[2];
+                    const simd_float2 level = z / simd_abs(tpp - mapping * dz);
+                    return getTextureColor(buffer, mapping, level);
+                };
+            }
+        }
         for (uint32_t y = ymin; y <= ymax; y++) {
             for (uint32_t x = xmin; x <= xmax; x++) {
                 if (weight.w[0] >= 0 && weight.w[1] >= 0 && weight.w[2] >= 0) {
@@ -362,7 +371,7 @@ void updateAndRender(const PixelData *pixel_data, const Input *input) {
                     if (z > *pointers.dbuffer) {
                         *pointers.dbuffer = z;
                         const simd_float3 w = weight.w / z;
-                        const simd_float3 point = -simd_fast_normalize(p[0] * w[0] + p[1] * w[1] + p[2] * w[2]);
+                        const simd_float3 point = -simd_fast_normalize(cv[0] * w[0] + cv[1] * w[1] + cv[2] * w[2]);
                         const simd_float3 normal = simd_fast_normalize(n[0] * w[0] + n[1] * w[1] + n[2] * w[2]);
                         const simd_float3 halfway = simd_fast_normalize(point + normal);
                         const simd_float3 shadedColor = simd_dot(halfway, normal) * getColor(w, z);

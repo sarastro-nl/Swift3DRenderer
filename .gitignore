@@ -2,5 +2,4 @@ main
 main-cpp
 data-generator/data.bin
 data-generator/data-generator
-data-generator/ppms
 render-cpp/render.dylib
