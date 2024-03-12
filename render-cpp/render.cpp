@@ -32,7 +32,7 @@ typedef struct {
 
 typedef struct {
     const simd_float4 normal;
-    color_attribute_t ca;
+    const color_attribute_t ca;
 } vertex_attribute_t;
 
 typedef struct {
@@ -146,8 +146,7 @@ void update_camera(const Input *input, const bool force_update = false) {
         state.camera_axis.x = simd_fast_normalize(simd_act(q, state.camera_axis.x));
         state.camera_axis.y = simd_fast_normalize(simd_act(q, state.camera_axis.y));
         state.camera_axis.z = z;
-        state.mouse.x = input->mouse.x;
-        state.mouse.y = input->mouse.y;
+        state.mouse = input->mouse;
     }
     if (changed || force_update) {
         state.camera_matrix = simd_matrix_from_rows(simd_make_float4(state.camera_axis.x, -simd_dot(state.camera_axis.x, state.camera_position)),
@@ -262,11 +261,6 @@ void clip(data_t *data, uint64_t *v_count, uint64_t *a_count, uint64_t *vi_count
     }
 }
 
-static simd_float2 extracted(const PixelData *pixel_data) {
-    const simd_float2 size = simd_make_float2((float)pixel_data->width, (float)pixel_data->height);
-    return size;
-}
-
 __attribute__((visibility("default")))
 void updateAndRender(const PixelData *pixel_data, const Input *input) {
     static bool initialized = false;
@@ -287,7 +281,7 @@ void updateAndRender(const PixelData *pixel_data, const Input *input) {
     memset(depth_buffer.buffer, 0, depth_buffer.buffer_size);
     memset_pattern4(pixel_data->buffer, &config.background_color, pixel_data->bufferSize);
 
-    const simd_float2 screen_size = extracted(pixel_data);
+    const simd_float2 screen_size = simd_make_float2((float)pixel_data->width, (float)pixel_data->height);
     for (uint32_t i = 0; i < scene.vertex_count; i++) {
         const simd_float3 v = simd_mul(state.camera_matrix, scene.vertices[i]);
         scene.camera_vertices[i] = v;
