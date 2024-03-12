@@ -1,6 +1,6 @@
 # Swift3DRenderer
 
-Swift and C++ implementation of a simple 3d render engine. All the calculations are deliberately done on CPU instead of GPU to see what hardware accelerators like Metal do under the hood. Therefor it doesn't use Metal _directly_, but it does use Metal drawables to render the generated pixel buffer into its layers' texture.
+Swift and C++ implementation of a simple 3d render engine. All the calculations are deliberately done on CPU instead of GPU to see what hardware accelerators like Metal do under the hood. Therefor it doesn't use Metal _directly_, although it does use Metal drawables to render the generated pixel buffer into its layers' texture.
 
 An example of the scene on MacOS:
 ![](assets/sceneMacOS.jpg)
@@ -8,7 +8,7 @@ An example of the scene on MacOS:
 An example of the scene on iOS:
 ![](assets/sceneiOS.jpg)
 
-####Implemented features are:
+###Implemented features are:
 
 * runs on iOS target (with 2 controller, see picture above)
 * runs on MacOS target (with mouse/trackpad and WASD on keyboard)
