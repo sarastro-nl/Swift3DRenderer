@@ -8,7 +8,7 @@ An example of the scene on MacOS:
 An example of the scene on iOS:
 ![](assets/sceneiOS.jpg)
 
-###Implemented features are:
+### Implemented features are:
 
 * runs on iOS target (with 2 controller, see picture above)
 * runs on MacOS target (with mouse/trackpad and WASD on keyboard)
@@ -24,7 +24,7 @@ An example of the scene on iOS:
 
 Although I've tried to push the limits of the CPU by making the code as efficient as I possibly can, it's aim is not speed . It is meant to be purely educational to understand the basic features needed to render a simple 3d world where you can fly around.
 
-The main loop calls `updateAndRender()` (in case of C++: the version in `render.dylib`) at 60fps which on its turn fills a pixel buffer with RGB info that is written to the layers' texture of a Metal drawable.
+The main loop calls `updateAndRender()` (in case of C++: the version in `render.dylib`) at 60fps which on its turn fills a pixel buffer with RGB data that is written to the layers' texture of a Metal drawable.
 
 There is a scene data generator in `data-generator/main.swift`. When changed it will generate a new `data.bin` containing the vertex and attribute data including the texture images that will be read at startup by the renderer.
 

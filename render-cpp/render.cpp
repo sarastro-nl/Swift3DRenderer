@@ -4,7 +4,6 @@
 #include "render.hpp"
 
 extern "C" {
-#include <immintrin.h>
 
 #define RGB(r, g, b) (uint32_t)(((((uint8_t)(r) << 8) + (uint8_t)(g)) << 8) + (uint8_t)(b))
 #define EDGE_FUNCTION(a, b, c) ((c.x - a.x) * (a.y - b.y) + (c.y - a.y) * (b.x - a.x))
