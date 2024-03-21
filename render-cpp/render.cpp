@@ -123,8 +123,8 @@ uint32_t nextPowerOfTwo(uint32_t i) {
 
 __attribute__((always_inline))
 simd_float3 getTextureColor(uint32_t *buffer, simd_float2 uv, simd_float2 level) {
-    uint32_t levelX = nextPowerOfTwo((uint32_t)fmaxf(fmin(level.x, 256.f), 1.f));
-    uint32_t levelY = nextPowerOfTwo((uint32_t)fmaxf(fmin(level.y, 256.f), 1.f));
+    uint32_t levelX = nextPowerOfTwo((uint32_t)fmaxf(fminf(level.x, 256.f), 1.f));
+    uint32_t levelY = nextPowerOfTwo((uint32_t)fmaxf(fminf(level.y, 256.f), 1.f));
     uint32_t x = (uint32_t)(fmodf(uv.x, 1) * levelX) + (511 & ~(2 * levelX - 1));
     uint32_t y = (uint32_t)(fmodf(uv.y, 1) * levelY) + (511 & ~(2 * levelY - 1));
     uint32_t rgb = *(buffer + x + (y << 9));
@@ -305,7 +305,7 @@ void updateAndRender(const PixelData *pixel_data, const Input *input) {
         
         if (fmaxf(fmaxf(data[0].rv.z, data[1].rv.z), data[2].rv.z) <= config.near) { continue; }
         
-        if (fmin(fmin(data[0].rv.z, data[1].rv.z), data[2].rv.z) < config.near) {
+        if (fminf(fminf(data[0].rv.z, data[1].rv.z), data[2].rv.z) < config.near) {
             clip(data, &vertex_count, &attribute_count, &vertex_indices_count, vi, ai, &screen_size);
         }
         const simd_float3 rvmax = simd_max(simd_max(data[0].rv, data[1].rv), data[2].rv);
@@ -317,9 +317,9 @@ void updateAndRender(const PixelData *pixel_data, const Input *input) {
         if (area < 10) { continue; } // too small to waiste time rendering it
         const float oneOverArea = 1 / area;
         const uint32_t xmin = (uint32_t)fmaxf(0, rvmin.x);
-        const uint32_t xmax = (uint32_t)fmin(screen_size[0] - 1, rvmax.x);
+        const uint32_t xmax = (uint32_t)fminf(screen_size[0] - 1, rvmax.x);
         const uint32_t ymin = (uint32_t)fmaxf(0, rvmin.y);
-        const uint32_t ymax = (uint32_t)fmin(screen_size[1] - 1, rvmax.y);
+        const uint32_t ymax = (uint32_t)fminf(screen_size[1] - 1, rvmax.y);
         const simd_float2 pStart = simd_make_float2((float)xmin + 0.5f, (float)ymin + 0.5f);
         const simd_float3 wstart = simd_make_float3(EDGE_FUNCTION(data[1].rv, data[2].rv, pStart), EDGE_FUNCTION(data[2].rv, data[0].rv, pStart), EDGE_FUNCTION(data[0].rv, data[1].rv, pStart)) * oneOverArea;
         weight_t weight = {
