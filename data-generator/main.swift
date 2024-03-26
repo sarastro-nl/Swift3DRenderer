@@ -26,7 +26,7 @@ extension simd_float3 {
         repeat {
             q = simd_float3.randomUnitSpherePoint
         } while q == x || q == -x
-        let y = simd_normalize(simd_cross(x, q))
+        let y = simd_fast_normalize(simd_cross(x, q))
         let z = simd_cross(x, y)
         return (x, y, z)
     }

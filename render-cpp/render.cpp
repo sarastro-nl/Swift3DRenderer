@@ -315,17 +315,17 @@ void updateAndRender(const PixelData *pixel_data, const Input *input) {
             
         const float area = EDGE_FUNCTION(data[0].rv, data[1].rv, data[2].rv);
         if (area < 10) { continue; } // too small to waiste time rendering it
-        const float oneOverArea = 1 / area;
+        const float one_over_area = 1 / area;
         const uint32_t xmin = (uint32_t)fmaxf(0, rvmin.x);
         const uint32_t xmax = (uint32_t)fminf(screen_size[0] - 1, rvmax.x);
         const uint32_t ymin = (uint32_t)fmaxf(0, rvmin.y);
         const uint32_t ymax = (uint32_t)fminf(screen_size[1] - 1, rvmax.y);
         const simd_float2 pStart = simd_make_float2((float)xmin + 0.5f, (float)ymin + 0.5f);
-        const simd_float3 wstart = simd_make_float3(EDGE_FUNCTION(data[1].rv, data[2].rv, pStart), EDGE_FUNCTION(data[2].rv, data[0].rv, pStart), EDGE_FUNCTION(data[0].rv, data[1].rv, pStart)) * oneOverArea;
+        const simd_float3 wstart = simd_make_float3(EDGE_FUNCTION(data[1].rv, data[2].rv, pStart), EDGE_FUNCTION(data[2].rv, data[0].rv, pStart), EDGE_FUNCTION(data[0].rv, data[1].rv, pStart)) * one_over_area;
         weight_t weight = {
             .w = wstart, .wy = wstart,
-            .dx = simd_make_float3(data[1].rv.y - data[2].rv.y, data[2].rv.y - data[0].rv.y, data[0].rv.y - data[1].rv.y) * oneOverArea,
-            .dy = simd_make_float3(data[2].rv.x - data[1].rv.x, data[0].rv.x - data[2].rv.x, data[1].rv.x - data[0].rv.x) * oneOverArea };
+            .dx = simd_make_float3(data[1].rv.y - data[2].rv.y, data[2].rv.y - data[0].rv.y, data[0].rv.y - data[1].rv.y) * one_over_area,
+            .dy = simd_make_float3(data[2].rv.x - data[1].rv.x, data[0].rv.x - data[2].rv.x, data[1].rv.x - data[0].rv.x) * one_over_area };
         const uint32_t bufferStart = ymin * pixel_data->width + xmin;
         pointers_t pointers = {
             .pbuffer = pixel_data->buffer + bufferStart,
@@ -340,7 +340,7 @@ void updateAndRender(const PixelData *pixel_data, const Input *input) {
         switch (data[0].ca.disc) {
             case color: {
                 const simd_float3 cc[3] = {data[0].ca.u.color * rvz[0], data[1].ca.u.color * rvz[1], data[2].ca.u.color * rvz[2]};
-                getColor = [cc] (const simd_float3 w, const float z) { (void)z;return cc[0] * w[0] + cc[1] * w[1] + cc[2] * w[2];};
+                getColor = [cc] (const simd_float3 w, const float one_over_z) { (void)one_over_z;return cc[0] * w[0] + cc[1] * w[1] + cc[2] * w[2];};
                 break;
             }
             case texture: {
@@ -350,9 +350,9 @@ void updateAndRender(const PixelData *pixel_data, const Input *input) {
                 const simd_float2 tpp = (uv[0] * simd_make_float2(weight.dx[0], weight.dy[0]) +
                                          uv[1] * simd_make_float2(weight.dx[1], weight.dy[1]) +
                                          uv[2] * simd_make_float2(weight.dx[2], weight.dy[2]));
-                getColor = [buffer, uv, dz, tpp] (const simd_float3 w, const float z) {
+                getColor = [buffer, uv, dz, tpp] (const simd_float3 w, const float one_over_z) {
                     const simd_float2 mapping = uv[0] * w[0] + uv[1] * w[1] + uv[2] * w[2];
-                    const simd_float2 level = z / simd_abs(tpp - mapping * dz);
+                    const simd_float2 level = one_over_z / simd_abs(tpp - mapping * dz);
                     return getTextureColor(buffer, mapping, level);
                 };
             }
@@ -360,14 +360,14 @@ void updateAndRender(const PixelData *pixel_data, const Input *input) {
         for (uint32_t y = ymin; y <= ymax; y++) {
             for (uint32_t x = xmin; x <= xmax; x++) {
                 if (weight.w[0] >= 0 && weight.w[1] >= 0 && weight.w[2] >= 0) {
-                    const float z = simd_dot(rvz, weight.w);
-                    if (z > *pointers.dbuffer) {
-                        *pointers.dbuffer = z;
-                        const simd_float3 w = weight.w / z;
+                    const float one_over_z = simd_dot(rvz, weight.w);
+                    if (one_over_z > *pointers.dbuffer) {
+                        *pointers.dbuffer = one_over_z;
+                        const simd_float3 w = weight.w / one_over_z;
                         const simd_float3 point = -simd_fast_normalize(cv[0] * w[0] + cv[1] * w[1] + cv[2] * w[2]);
                         const simd_float3 normal = simd_fast_normalize(n[0] * w[0] + n[1] * w[1] + n[2] * w[2]);
                         const simd_float3 halfway = simd_fast_normalize(point + normal);
-                        const simd_float3 shadedColor = simd_dot(halfway, normal) * getColor(w, z);
+                        const simd_float3 shadedColor = simd_dot(halfway, normal) * getColor(w, one_over_z);
                         *pointers.pbuffer = RGB(shadedColor[0], shadedColor[1], shadedColor[2]);
                     }
                 }

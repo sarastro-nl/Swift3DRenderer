@@ -309,9 +309,9 @@ func updateAndRender(_ pixelData: inout PixelData, _ input: inout Input) {
                 let tpp = (uv[0] * simd_float2(Weight.dx[0], Weight.dy[0]) +
                            uv[1] * simd_float2(Weight.dx[1], Weight.dy[1]) +
                            uv[2] * simd_float2(Weight.dx[2], Weight.dy[2]))
-                getColor = { w, z in
+                getColor = { w, oneOverZ in
                     let mapping = uv[0] * w[0] + uv[1] * w[1] + uv[2] * w[2]
-                    let level = z / simd_abs(tpp - mapping * dz)
+                    let level = oneOverZ / simd_abs(tpp - mapping * dz)
                     return getTextureColor(buffer, mapping, level)
                 }
             default: fatalError()
@@ -320,14 +320,14 @@ func updateAndRender(_ pixelData: inout PixelData, _ input: inout Input) {
         for _ in ymin...ymax {
             for _ in xmin...xmax {
                 if Weight.w[0] >= 0 && Weight.w[1] >= 0 && Weight.w[2] >= 0 {
-                    let z = simd_dot(rvz, Weight.w)
-                    if z > Pointers.dBuffer.pointee {
-                        Pointers.dBuffer.pointee = z
-                        let w = Weight.w / z
+                    let oneOverZ = simd_dot(rvz, Weight.w)
+                    if oneOverZ > Pointers.dBuffer.pointee {
+                        Pointers.dBuffer.pointee = oneOverZ
+                        let w = Weight.w / oneOverZ
                         let point = -simd_fast_normalize(cv[0] * w[0] + cv[1] * w[1] + cv[2] * w[2])
                         let normal = simd_fast_normalize(n[0] * w[0] + n[1] * w[1] + n[2] * w[2])
                         let halfway = simd_fast_normalize(point + normal)
-                        let shadedColor = simd_dot(halfway, normal) * getColor(w, z)
+                        let shadedColor = simd_dot(halfway, normal) * getColor(w, oneOverZ)
                         Pointers.pBuffer.pointee = RGB(shadedColor)
                     }
                 }
