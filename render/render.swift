@@ -142,7 +142,7 @@ func initialize() {
     let count: UnsafeMutablePointer<Int> = .allocate(capacity: 2)
     reader.read(count, maxLength: 16)
     Scene.vertexCount = count.pointee
-    Scene.vertices = .allocate(capacity: Scene.vertexCount)
+    Scene.vertices = .allocate(capacity: count.pointee)
     reader.read(Scene.vertices, maxLength: count.pointee * MemoryLayout<simd_float4>.stride)
     Scene.cameraVertices = .allocate(capacity: 2 * count.pointee)
     Scene.rasterVertices = .allocate(capacity: 2 * count.pointee)

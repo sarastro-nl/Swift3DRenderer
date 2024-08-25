@@ -105,6 +105,43 @@ func addTriangle() {
     attributeIndexes.append(contentsOf: j..<(j + 3))
 }
 
+func addMyTriangle() {
+    var v: [simd_float3] = [
+        simd_float3(-10, 10, 0),
+        simd_float3(10, 10, 0),
+        simd_float3(-10, -10, 0),
+    ]
+    let a = 45 * Float.pi / 180
+    let m = simd_float3x3(simd_float3(cos(a), sin(a), 0), simd_float3(-sin(a), cos(a), 0), simd_float3(0, 0, 1))
+    v = v.map { simd_mul(m, $0) }
+    //    let a: Float = 0.003
+    //    var v: [simd_float3] = [
+    //        simd_float3(-a, -0.5, -sqrt(3)/2),
+    //        simd_float3(a, -0.5, sqrt(3)/2),
+    //        simd_float3(0, 1, 0),
+    //    ]
+    //    let r = Float.random(in: 1...10)
+    //    let p = simd_float3.randomPoint
+    let r: Float = 1.0
+    let p = simd_float3(0, 0, -64)
+    v = v.map { r * $0 + p }
+    let i = vertices.count
+    vertices.append(contentsOf: v)
+    vertexIndexes.append(contentsOf: [
+        i, i + 1, i + 2,
+    ])
+    let j = attributes.count
+    attributes.append(contentsOf: [
+        //        VertexAttribute(normal(v, 0, 1, 2), .color(red)),
+        //        VertexAttribute(normal(v, 0, 1, 2), .color(orange)),
+        //        VertexAttribute(normal(v, 0, 1, 2), .color(blue)),
+        VertexAttribute(simd_float3(0, 0, 1), .texture(Texture(1, simd_float2(0, 0)))),
+        VertexAttribute(simd_float3(0, 0, 1), .texture(Texture(1, simd_float2(1, 0)))),
+        VertexAttribute(simd_float3(0, 0, 1), .texture(Texture(1, simd_float2(0, 1)))),
+    ])
+    attributeIndexes.append(contentsOf: j..<(j + 3))
+}
+
 func addRegularFloor() {
     let a = 30
     let i = vertices.count
@@ -372,11 +409,15 @@ func addIcosahedron() {
     attributeIndexes.append(contentsOf: j..<(j + 60))
 }
 
+//addTriangle()
 //addRegularFloor()
-addSimpleFloor()
+//addSimpleFloor()
 for _ in 0..<1 { addTriangle() }
 for _ in 0..<2 { addTetrahedron() }
 for _ in 0..<2 { addIcosahedron() }
+//addMyTriangle()
+
+guard vertexIndexes.count == attributeIndexes.count else { fatalError() }
 
 let directory = String(#file.prefix(upTo: #file.lastIndex(of: "/")!))
 let dataPath = directory + "/data.bin"
@@ -398,7 +439,6 @@ writer.write(attributes.reduce(into: Data()) { r, va in
 writer.write([attributeIndexes.count, 0].withUnsafeBytes { Data($0) })
 writer.write(attributeIndexes.withUnsafeBytes { Data($0) })
 writer.write(Array(repeating: 0, count: MemoryLayout<Int>.stride * attributeIndexes.count % 16 / MemoryLayout<Int>.stride).withUnsafeBytes { Data($0) })
-
 let contents = try FileManager.default.contentsOfDirectory(atPath: directory + "/ppms").sorted()
 let files = contents.map { directory + "/ppms/" + $0 }
 writer.write([files.count << 18, 0].withUnsafeBytes { Data($0) })
