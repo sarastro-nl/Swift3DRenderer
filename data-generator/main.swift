@@ -151,7 +151,7 @@ func addRegularFloor() {
             vertices.append(simd_float3(Float(x) - Float(a) / 2 + extra, -0.5, -Float(z) - 2))
         }
     }
-    let ppm = 1
+    let ppm = 0
     let scale: Float = 1
     for z in 0..<a {
         let a1 = i + z * (a + 1)
@@ -411,7 +411,7 @@ func addIcosahedron() {
 
 //addTriangle()
 //addRegularFloor()
-//addSimpleFloor()
+addSimpleFloor()
 for _ in 0..<1 { addTriangle() }
 for _ in 0..<2 { addTetrahedron() }
 for _ in 0..<2 { addIcosahedron() }
