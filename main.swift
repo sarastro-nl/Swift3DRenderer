@@ -25,6 +25,9 @@ struct Input {
     var right: Float
     var mouse: simd_float2
 }
+#else
+typealias PixelData = pixel_data_t
+typealias Input = input_t
 #endif
 
 class ViewController: PlatformController {
@@ -94,7 +97,7 @@ class ViewController: PlatformController {
 
 #if CPP
         guard let handle = dlopen(Bundle.main.dylibPath, RTLD_NOW),
-              let sym = dlsym(handle, "updateAndRender") else { fatalError() }
+              let sym = dlsym(handle, "update_and_render") else { fatalError() }
         updateAndRender = unsafeBitCast(sym, to: updateAndRenderFunc.self)
 #endif
 

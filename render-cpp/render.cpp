@@ -45,7 +45,7 @@ typedef struct {
 typedef struct {
     uint32_t *pbuffer;
     float *dbuffer;
-    const uint32_t xDelta;
+    const uint32_t xdelta;
 } pointers_t;
 
 static struct {
@@ -115,7 +115,7 @@ static struct {
 } scene;
 
 __attribute__((always_inline))
-uint32_t nextPowerOfTwo(uint32_t i) {
+uint32_t next_power_of_two(uint32_t i) {
     i--;
     i |= i >> 1;
     i |= i >> 2;
@@ -124,16 +124,16 @@ uint32_t nextPowerOfTwo(uint32_t i) {
 }
 
 __attribute__((always_inline))
-simd_float3 getTextureColor(uint32_t *buffer, simd_float2 uv, simd_float2 level) {
-    uint32_t levelX = nextPowerOfTwo((uint32_t)fmaxf(fminf(level.x, 256.f), 1.f));
-    uint32_t levelY = nextPowerOfTwo((uint32_t)fmaxf(fminf(level.y, 256.f), 1.f));
-    uint32_t x = (uint32_t)(fmodf(uv.x, 1) * levelX) + (511 & ~(2 * levelX - 1));
-    uint32_t y = (uint32_t)(fmodf(uv.y, 1) * levelY) + (511 & ~(2 * levelY - 1));
+simd_float3 get_texture_color(uint32_t *buffer, simd_float2 uv, simd_float2 level) {
+    uint32_t level_x = next_power_of_two((uint32_t)fmaxf(fminf(level.x, 256.f), 1.f));
+    uint32_t level_y = next_power_of_two((uint32_t)fmaxf(fminf(level.y, 256.f), 1.f));
+    uint32_t x = (uint32_t)(fmodf(uv.x, 1) * level_x) + (511 & ~(2 * level_x - 1));
+    uint32_t y = (uint32_t)(fmodf(uv.y, 1) * level_y) + (511 & ~(2 * level_y - 1));
     uint32_t rgb = *(buffer + x + (y << 9));
     return simd_make_float3((float)(rgb >> 16), (float)((rgb >> 8) & 255), (float)(rgb & 255));
 }
 
-void update_camera(const Input *input, const bool force_update = false) {
+void update_camera(const input_t *input, const bool force_update = false) {
     bool changed = false;
     if (input->left > 0 || input->right > 0 || input->up > 0 || input->down > 0) {
         changed = true;
@@ -160,11 +160,11 @@ void update_camera(const Input *input, const bool force_update = false) {
     }
 }
 
-void updateAndRender(const PixelData *pixel_data, const Input *input);
+void update_and_render(const pixel_data_t *pixel_data, const input_t *input);
 
 void initialize() {
     Dl_info info;
-    dladdr((const void *)updateAndRender, &info);
+    dladdr((const void *)update_and_render, &info);
     char path[PATH_MAX];
     strcpy(path, info.dli_fname);
     FILE *fp;
@@ -267,7 +267,7 @@ void clip(data_t *data, uint64_t *v_count, uint64_t *a_count, uint64_t *vi_count
 }
 
 __attribute__((visibility("default")))
-void updateAndRender(const PixelData *pixel_data, const Input *input) {
+void update_and_render(const pixel_data_t *pixel_data, const input_t *input) {
     static bool initialized = false;
     if (!initialized) {
         initialized = true;
@@ -325,17 +325,17 @@ void updateAndRender(const PixelData *pixel_data, const Input *input) {
         const uint32_t xmax = (uint32_t)fminf(screen_size[0] - 1, rvmax.x);
         const uint32_t ymin = (uint32_t)fmaxf(0, rvmin.y);
         const uint32_t ymax = (uint32_t)fminf(screen_size[1] - 1, rvmax.y);
-        const simd_float2 pStart = simd_make_float2((float)xmin + 0.5f, (float)ymin + 0.5f);
-        const simd_float3 wstart = simd_make_float3(EDGE_FUNCTION(data[1].rv, data[2].rv, pStart), EDGE_FUNCTION(data[2].rv, data[0].rv, pStart), EDGE_FUNCTION(data[0].rv, data[1].rv, pStart)) * one_over_area;
+        const simd_float2 p_start = simd_make_float2((float)xmin + 0.5f, (float)ymin + 0.5f);
+        const simd_float3 w_start = simd_make_float3(EDGE_FUNCTION(data[1].rv, data[2].rv, p_start), EDGE_FUNCTION(data[2].rv, data[0].rv, p_start), EDGE_FUNCTION(data[0].rv, data[1].rv, p_start)) * one_over_area;
         weight_t weight = {
-            .w = wstart, .wy = wstart,
+            .w = w_start, .wy = w_start,
             .dx = simd_make_float3(data[1].rv.y - data[2].rv.y, data[2].rv.y - data[0].rv.y, data[0].rv.y - data[1].rv.y) * one_over_area,
             .dy = simd_make_float3(data[2].rv.x - data[1].rv.x, data[0].rv.x - data[2].rv.x, data[1].rv.x - data[0].rv.x) * one_over_area };
         const uint32_t bufferStart = ymin * pixel_data->width + xmin;
         pointers_t pointers = {
             .pbuffer = pixel_data->buffer + bufferStart,
             .dbuffer = depth_buffer.buffer + bufferStart,
-            .xDelta = pixel_data->width - xmax + xmin - 1,
+            .xdelta = pixel_data->width - xmax + xmin - 1,
         };
         
         const simd_float3 rvz = 1 / simd_make_float3(data[0].rv.z, data[1].rv.z, data[2].rv.z);
@@ -358,7 +358,7 @@ void updateAndRender(const PixelData *pixel_data, const Input *input) {
                 getColor = [buffer, uv, dz, tpp] (const simd_float3 w, const float one_over_z) {
                     const simd_float2 mapping = uv[0] * w[0] + uv[1] * w[1] + uv[2] * w[2];
                     const simd_float2 level = one_over_z / simd_abs(tpp - mapping * dz);
-                    return getTextureColor(buffer, mapping, level);
+                    return get_texture_color(buffer, mapping, level);
                 };
             }
         }
@@ -382,8 +382,8 @@ void updateAndRender(const PixelData *pixel_data, const Input *input) {
             }
             weight.wy += weight.dy;
             weight.w = weight.wy;
-            pointers.pbuffer += pointers.xDelta;
-            pointers.dbuffer += pointers.xDelta;
+            pointers.pbuffer += pointers.xdelta;
+            pointers.dbuffer += pointers.xdelta;
         }
     }
 }

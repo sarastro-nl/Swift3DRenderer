@@ -10,7 +10,7 @@ typedef struct {
     uint32_t height;
     uint32_t bytesPerPixel;
     uint32_t bufferSize;
-} PixelData;
+} pixel_data_t;
 
 typedef struct {
     float up;
@@ -18,6 +18,6 @@ typedef struct {
     float left;
     float right;
     simd_float2 mouse;
-} Input;
+} input_t;
 
 #endif /* render_hpp */
