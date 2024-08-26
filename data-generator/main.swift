@@ -48,11 +48,11 @@ enum ColorAttribute {
 }
 
 struct VertexAttribute {
-    let normal: simd_float4
+    let normal: simd_float3
     let colorAttribute: ColorAttribute
     
     init (_ normal: simd_float3, _ colorAttribute: ColorAttribute) {
-        self.normal = simd_make_float4(normal)
+        self.normal = normal
         self.colorAttribute = colorAttribute
     }
 }
@@ -426,8 +426,7 @@ guard let writer = FileHandle(forWritingAtPath: dataPath) else { fatalError() }
 defer { writer.closeFile() }
 
 writer.write([vertices.count, 0].withUnsafeBytes { Data($0) })
-let v = vertices.map { simd_float4($0.x, $0.y, $0.z, 1)}
-writer.write(v.withUnsafeBytes { Data($0) })
+writer.write(vertices.withUnsafeBytes { Data($0) })
 writer.write([vertexIndexes.count, 0].withUnsafeBytes { Data($0) })
 writer.write(vertexIndexes.withUnsafeBytes { Data($0) })
 writer.write(Array(repeating: 0, count: MemoryLayout<Int>.stride * vertexIndexes.count % 16 / MemoryLayout<Int>.stride).withUnsafeBytes { Data($0) })

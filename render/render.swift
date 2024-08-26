@@ -4,12 +4,13 @@ import simd
 private struct State {
     static var cameraPosition = simd_float3.zero
     static var cameraAxis = (x: simd_float3(1, 0, 0), y: simd_float3(0, 1, 0), z: simd_float3(0, 0, 1))
-    static var cameraMatrix = simd_float4x3(diagonal: simd_float3.one)
+    static var cameraMatrix = simd_float3x3()
+    static var origin2CameraPosition = simd_float3.zero
     static var mouse = simd_float2.zero
 }
 
 private struct Scene {
-    static var vertices: UnsafeMutablePointer<simd_float4> = .allocate(capacity: 0)
+    static var vertices: UnsafeMutablePointer<simd_float3> = .allocate(capacity: 0)
     static var vertexCount: Int = 0
     static var vertexIndices: UnsafeMutablePointer<Int> = .allocate(capacity: 0)
     static var vertexIndicesCount: Int = 0
@@ -51,7 +52,7 @@ private enum ColorAttribute {
 }
 
 private struct VertexAttribute {
-    let normal: simd_float4
+    let normal: simd_float3
     var colorAttribute: ColorAttribute
 }
 
@@ -128,9 +129,12 @@ private func updateCamera(_ input: inout Input, _ forceUpdate: Bool = false) {
         State.mouse = input.mouse
     }
     if changed || forceUpdate {
-        State.cameraMatrix = simd_float4x3(rows: [simd_float4(State.cameraAxis.x, -simd_dot(State.cameraAxis.x, State.cameraPosition)),
-                                                  simd_float4(State.cameraAxis.y, -simd_dot(State.cameraAxis.y, State.cameraPosition)),
-                                                  simd_float4(State.cameraAxis.z, -simd_dot(State.cameraAxis.z, State.cameraPosition))])
+        State.cameraMatrix = simd_float3x3(rows: [State.cameraAxis.x,
+                                                  State.cameraAxis.y,
+                                                  State.cameraAxis.z])
+        State.origin2CameraPosition = -simd_float3(simd_dot(State.cameraAxis.x, State.cameraPosition),
+                                                   simd_dot(State.cameraAxis.y, State.cameraPosition),
+                                                   simd_dot(State.cameraAxis.z, State.cameraPosition))
     }
 }
 
@@ -143,7 +147,7 @@ func initialize() {
     reader.read(count, maxLength: 16)
     Scene.vertexCount = count.pointee
     Scene.vertices = .allocate(capacity: count.pointee)
-    reader.read(Scene.vertices, maxLength: count.pointee * MemoryLayout<simd_float4>.stride)
+    reader.read(Scene.vertices, maxLength: count.pointee * MemoryLayout<simd_float3>.stride)
     Scene.cameraVertices = .allocate(capacity: 2 * count.pointee)
     Scene.rasterVertices = .allocate(capacity: 2 * count.pointee)
 
@@ -246,7 +250,7 @@ func updateAndRender(_ pixelData: inout PixelData, _ input: inout Input) {
 
     let screenSize = simd_float2(Float(pixelData.width), Float(pixelData.height))
     for (i, vertex) in UnsafeBufferPointer(start: Scene.vertices, count: Scene.vertexCount).enumerated() {
-        let cv = simd_mul(State.cameraMatrix, vertex)
+        let cv = simd_mul(State.cameraMatrix, vertex) + State.origin2CameraPosition
         Scene.cameraVertices[i] = cv
         Scene.rasterVertices[i] = simd_float3(cv.x, -cv.y, 0) * Config.factor / -cv.z + simd_float3(screenSize / 2, -cv.z)
     }

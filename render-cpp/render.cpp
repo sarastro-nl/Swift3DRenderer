@@ -31,7 +31,7 @@ typedef struct {
 } data_t;
 
 typedef struct {
-    const simd_float4 normal;
+    const simd_float3 normal;
     const color_attribute_t ca;
 } vertex_attribute_t;
 
@@ -55,13 +55,15 @@ static struct {
         simd_float3 y;
         simd_float3 z;
     } camera_axis;
-    simd_float4x3 camera_matrix;
+    simd_float3x3 camera_matrix;
+    simd_float3 origin2Camera_position;
     simd_float2 mouse;
 } state = {
-    .camera_position = simd_make_float3(0, 0, 0),
-    .camera_axis = { .x = simd_make_float3(1, 0, 0), .y = simd_make_float3(0, 1, 0), .z = simd_make_float3(0, 0, 1)},
-    .camera_matrix = simd_matrix_from_rows(simd_make_float4(1, 0, 0, 0), simd_make_float4(0, 1, 0, 0), simd_make_float4(0, 0, 1, 0)),
-    .mouse = simd_make_float2(0, 0),
+    .camera_position = {0, 0, 0},
+    .camera_axis = { {1, 0, 0}, {0, 1, 0}, {0, 0, 1} },
+    .camera_matrix = { { {0, 0, 0}, {0, 0, 0}, {0, 0, 0} } },
+    .origin2Camera_position = {0, 0, 0},
+    .mouse = {0, 0},
 };
 
 static struct {
@@ -97,7 +99,7 @@ static struct {
 };
 
 static struct {
-    simd_float4 *vertices;
+    simd_float3 *vertices;
     uint64_t vertex_count;
     uint64_t *vertex_indices;
     uint64_t vertex_indices_count;
@@ -149,9 +151,12 @@ void update_camera(const Input *input, const bool force_update = false) {
         state.mouse = input->mouse;
     }
     if (changed || force_update) {
-        state.camera_matrix = simd_matrix_from_rows(simd_make_float4(state.camera_axis.x, -simd_dot(state.camera_axis.x, state.camera_position)),
-                                                    simd_make_float4(state.camera_axis.y, -simd_dot(state.camera_axis.y, state.camera_position)),
-                                                    simd_make_float4(state.camera_axis.z, -simd_dot(state.camera_axis.z, state.camera_position)));
+        state.camera_matrix = simd_matrix_from_rows(state.camera_axis.x,
+                                                    state.camera_axis.y,
+                                                    state.camera_axis.z);
+        state.origin2Camera_position = -simd_make_float3(simd_dot(state.camera_axis.x, state.camera_position),
+                                                         simd_dot(state.camera_axis.y, state.camera_position),
+                                                         simd_dot(state.camera_axis.z, state.camera_position));
     }
 }
 
@@ -177,8 +182,8 @@ void initialize() {
     uint64_t *count = (uint64_t *)malloc(2 * sizeof(uint64_t));
     fread(count, sizeof(uint64_t), 2, fp);
     scene.vertex_count = *count;
-    scene.vertices = (simd_float4 *)malloc(*count * sizeof(simd_float4));
-    fread(scene.vertices, sizeof(simd_float4), *count, fp);
+    scene.vertices = (simd_float3 *)malloc(*count * sizeof(simd_float3));
+    fread(scene.vertices, sizeof(simd_float3), *count, fp);
     scene.camera_vertices = (simd_float3 *)malloc(2 * *count * sizeof(simd_float3));
     scene.raster_vertices = (simd_float3 *)malloc(2 * *count * sizeof(simd_float3));
     
@@ -283,7 +288,7 @@ void updateAndRender(const PixelData *pixel_data, const Input *input) {
 
     const simd_float2 screen_size = simd_make_float2((float)pixel_data->width, (float)pixel_data->height);
     for (uint32_t i = 0; i < scene.vertex_count; i++) {
-        const simd_float3 v = simd_mul(state.camera_matrix, scene.vertices[i]);
+        const simd_float3 v = simd_mul(state.camera_matrix, scene.vertices[i]) + state.origin2Camera_position;
         scene.camera_vertices[i] = v;
         scene.raster_vertices[i] = simd_make_float3(v.x, -v.y, 0) * config.factor / -v.z + simd_make_float3(screen_size / 2, -v.z);
     }
