@@ -58,9 +58,9 @@ struct VertexAttribute {
 }
 
 var vertices: [simd_float3] = []
-var vertexIndexes: [Int] = []
+var vertexindices: [Int] = []
 var attributes: [VertexAttribute] = []
-var attributeIndexes: [Int] = []
+var attributeindices: [Int] = []
 
 let orange = NSColor.orange.simd_color
 let red = NSColor.red.simd_color
@@ -90,7 +90,7 @@ func addTriangle() {
     v = v.map { r * $0 + p }
     let i = vertices.count
     vertices.append(contentsOf: v)
-    vertexIndexes.append(contentsOf: [
+    vertexindices.append(contentsOf: [
         i, i + 1, i + 2,
     ])
     let j = attributes.count
@@ -102,7 +102,7 @@ func addTriangle() {
         VertexAttribute(normal(v, 0, 1, 2), .texture(Texture(1, simd_float2(0.5, 0)))),
         VertexAttribute(normal(v, 0, 1, 2), .texture(Texture(1, simd_float2(1, sqrt(3)/2)))),
     ])
-    attributeIndexes.append(contentsOf: j..<(j + 3))
+    attributeindices.append(contentsOf: j..<(j + 3))
 }
 
 func addMyTriangle() {
@@ -127,7 +127,7 @@ func addMyTriangle() {
     v = v.map { r * $0 + p }
     let i = vertices.count
     vertices.append(contentsOf: v)
-    vertexIndexes.append(contentsOf: [
+    vertexindices.append(contentsOf: [
         i, i + 1, i + 2,
     ])
     let j = attributes.count
@@ -139,7 +139,7 @@ func addMyTriangle() {
         VertexAttribute(simd_float3(0, 0, 1), .texture(Texture(1, simd_float2(1, 0)))),
         VertexAttribute(simd_float3(0, 0, 1), .texture(Texture(1, simd_float2(0, 1)))),
     ])
-    attributeIndexes.append(contentsOf: j..<(j + 3))
+    attributeindices.append(contentsOf: j..<(j + 3))
 }
 
 func addRegularFloor() {
@@ -163,7 +163,7 @@ func addRegularFloor() {
             let xStart = fmodf(Float(x) * scale, 1.0)
             let yStart = fmodf(Float(a - z - 1) * scale, 1.0)
             if z % 2 == 0 {
-                vertexIndexes.append(contentsOf: [a1 + x, a2 + x, a1 + 1 + x, a1 + 1 + x, a2 + x, a2 + 1 + x,])
+                vertexindices.append(contentsOf: [a1 + x, a2 + x, a1 + 1 + x, a1 + 1 + x, a2 + x, a2 + 1 + x,])
                 if true {
                     let t1 = simd_float2(xStart + 0 * scale, yStart + 1 * scale)
                     let t2 = simd_float2(xStart + 0.5 * scale, yStart + 0 * scale)
@@ -191,7 +191,7 @@ func addRegularFloor() {
                     ])
                 }
             } else {
-                vertexIndexes.append(contentsOf: [a1 + x, a2 + x, a2 + 1 + x, a2 + 1 + x, a1 + 1 + x, a1 + x,])
+                vertexindices.append(contentsOf: [a1 + x, a2 + x, a2 + 1 + x, a2 + 1 + x, a1 + 1 + x, a1 + x,])
                 if true {
                     let t1 = simd_float2(xStart + 0.5 * scale, yStart + 1 * scale)
                     let t2 = simd_float2(xStart + 0 * scale, yStart + 0 * scale)
@@ -219,7 +219,7 @@ func addRegularFloor() {
                     ])
                 }
             }
-            attributeIndexes.append(contentsOf: j..<(j+6))
+            attributeindices.append(contentsOf: j..<(j+6))
         }
     }
 }
@@ -235,21 +235,14 @@ func addSimpleFloor() {
     ])
     let ppm = 0
     let scale: Float = 15 / Float(a)
-    vertexIndexes.append(contentsOf: [i, i + 1, i + 2, i + 2, i + 1, i + 3])
-    let t1 = simd_float2(0, 0)
-    let t2 = simd_float2(Float(a) * scale, 0)
-    let t3 = simd_float2(0, Float(a) * scale)
-    let t4 = simd_float2(Float(a) * scale, Float(a) * scale)
-    let j = attributes.count
+    vertexindices.append(contentsOf: [i, i + 1, i + 2, i + 2, i + 1, i + 3])
     attributes.append(contentsOf: [
-        VertexAttribute(simd_float3(0, 1, 0), .texture(Texture(ppm, t1))),
-        VertexAttribute(simd_float3(0, 1, 0), .texture(Texture(ppm, t2))),
-        VertexAttribute(simd_float3(0, 1, 0), .texture(Texture(ppm, t3))),
-        VertexAttribute(simd_float3(0, 1, 0), .texture(Texture(ppm, t3))),
-        VertexAttribute(simd_float3(0, 1, 0), .texture(Texture(ppm, t2))),
-        VertexAttribute(simd_float3(0, 1, 0), .texture(Texture(ppm, t4))),
+        VertexAttribute(simd_float3(0, 1, 0), .texture(Texture(ppm, simd_float2(0, 0)))),
+        VertexAttribute(simd_float3(0, 1, 0), .texture(Texture(ppm, simd_float2(Float(a) * scale, 0)))),
+        VertexAttribute(simd_float3(0, 1, 0), .texture(Texture(ppm, simd_float2(0, Float(a) * scale)))),
+        VertexAttribute(simd_float3(0, 1, 0), .texture(Texture(ppm, simd_float2(Float(a) * scale, Float(a) * scale)))),
     ])
-    attributeIndexes.append(contentsOf: j..<(j+6))
+    attributeindices.append(contentsOf: [i, i + 1, i + 2, i + 2, i + 1, i + 3])
 }
 
 func addTetrahedron() {
@@ -270,7 +263,7 @@ func addTetrahedron() {
     v = v.map { r * $0 + p }
     let i = vertices.count
     vertices.append(contentsOf: v)
-    vertexIndexes.append(contentsOf: [
+    vertexindices.append(contentsOf: [
         i,   i+2, i+1,
         i,   i+3, i+2,
         i,   i+1, i+3,
@@ -291,7 +284,7 @@ func addTetrahedron() {
         VertexAttribute(normal(v, 1, 2, 3), .color(orange)),
         VertexAttribute(normal(v, 1, 2, 3), .color(orange)),
     ])
-    attributeIndexes.append(contentsOf: j..<(j + 12))
+    attributeindices.append(contentsOf: j..<(j + 12))
 }
 
 func addIcosahedron() {
@@ -321,7 +314,7 @@ func addIcosahedron() {
     
     let i = vertices.count
     vertices.append(contentsOf: v)
-    vertexIndexes.append(contentsOf: [
+    vertexindices.append(contentsOf: [
         i,    i+1,  i+4,
         i+4,  i+8,  i,
         i,    i+8,  i+9,
@@ -406,7 +399,7 @@ func addIcosahedron() {
         VertexAttribute(normal(v, 3, 2, 5), .color(orange)),
         VertexAttribute(normal(v, 3, 2, 5), .color(orange)),
     ])
-    attributeIndexes.append(contentsOf: j..<(j + 60))
+    attributeindices.append(contentsOf: j..<(j + 60))
 }
 
 //addTriangle()
@@ -417,7 +410,7 @@ for _ in 0..<2 { addTetrahedron() }
 for _ in 0..<2 { addIcosahedron() }
 //addMyTriangle()
 
-guard vertexIndexes.count == attributeIndexes.count else { fatalError() }
+guard vertexindices.count == attributeindices.count else { fatalError() }
 
 let directory = String(#file.prefix(upTo: #file.lastIndex(of: "/")!))
 let dataPath = directory + "/data.bin"
@@ -427,17 +420,17 @@ defer { writer.closeFile() }
 
 writer.write([vertices.count, 0].withUnsafeBytes { Data($0) })
 writer.write(vertices.withUnsafeBytes { Data($0) })
-writer.write([vertexIndexes.count, 0].withUnsafeBytes { Data($0) })
-writer.write(vertexIndexes.withUnsafeBytes { Data($0) })
-writer.write(Array(repeating: 0, count: MemoryLayout<Int>.stride * vertexIndexes.count % 16 / MemoryLayout<Int>.stride).withUnsafeBytes { Data($0) })
+writer.write([vertexindices.count, 0].withUnsafeBytes { Data($0) })
+writer.write(vertexindices.withUnsafeBytes { Data($0) })
+writer.write(Array(repeating: 0, count: MemoryLayout<Int>.stride * vertexindices.count % 16 / MemoryLayout<Int>.stride).withUnsafeBytes { Data($0) })
 writer.write([attributes.count, 0].withUnsafeBytes { Data($0) })
 writer.write(attributes.reduce(into: Data()) { r, va in
     var va = va
     r += withUnsafeBytes(of: &va) { Data($0) } + Data(Array(repeating: 0, count: 15))
 })
-writer.write([attributeIndexes.count, 0].withUnsafeBytes { Data($0) })
-writer.write(attributeIndexes.withUnsafeBytes { Data($0) })
-writer.write(Array(repeating: 0, count: MemoryLayout<Int>.stride * attributeIndexes.count % 16 / MemoryLayout<Int>.stride).withUnsafeBytes { Data($0) })
+writer.write([attributeindices.count, 0].withUnsafeBytes { Data($0) })
+writer.write(attributeindices.withUnsafeBytes { Data($0) })
+writer.write(Array(repeating: 0, count: MemoryLayout<Int>.stride * attributeindices.count % 16 / MemoryLayout<Int>.stride).withUnsafeBytes { Data($0) })
 let contents = try FileManager.default.contentsOfDirectory(atPath: directory + "/ppms").sorted()
 let files = contents.map { directory + "/ppms/" + $0 }
 writer.write([files.count << 18, 0].withUnsafeBytes { Data($0) })

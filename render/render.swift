@@ -13,9 +13,9 @@ private struct Scene {
     static var vertices: UnsafeMutablePointer<simd_float3> = .allocate(capacity: 0)
     static var vertexCount: Int = 0
     static var vertexIndices: UnsafeMutablePointer<Int> = .allocate(capacity: 0)
-    static var vertexIndicesCount: Int = 0
+    static var vertexIndexCount: Int = 0
     static var attributes: UnsafeMutablePointer<VertexAttribute> = .allocate(capacity: 0)
-    static var attributesCount: Int = 0
+    static var attributeCount: Int = 0
     static var attributeIndices: UnsafeMutablePointer<Int> = .allocate(capacity: 0)
     static var attributeIndicesCount: Int = 0
     
@@ -152,24 +152,23 @@ func initialize() {
     Scene.rasterVertices = .allocate(capacity: 2 * count.pointee)
 
     reader.read(count, maxLength: 16)
-    Scene.vertexIndicesCount = count.pointee
-    var alignedCount = Scene.vertexIndicesCount + Scene.vertexIndicesCount % 2
+    Scene.vertexIndexCount = count.pointee
+    let alignedCount = Scene.vertexIndexCount + Scene.vertexIndexCount % 2
     Scene.vertexIndices = .allocate(capacity: 2 * alignedCount)
     reader.read(Scene.vertexIndices, maxLength: alignedCount * MemoryLayout<Int>.stride)
     
     reader.read(count, maxLength: 16)
-    Scene.attributesCount = count.pointee
-    Scene.attributes = .allocate(capacity: Scene.attributesCount)
-    reader.read(Scene.attributes, maxLength: Scene.attributesCount * MemoryLayout<VertexAttribute>.stride)
-    Scene.colorAttributes = .allocate(capacity: 2 * Scene.attributesCount)
-    Scene.normals = .allocate(capacity: 2 * Scene.attributesCount)
-    for i in 0..<Scene.attributesCount {
+    Scene.attributeCount = count.pointee
+    Scene.attributes = .allocate(capacity: Scene.attributeCount)
+    reader.read(Scene.attributes, maxLength: Scene.attributeCount * MemoryLayout<VertexAttribute>.stride)
+    Scene.colorAttributes = .allocate(capacity: 2 * Scene.attributeCount)
+    Scene.normals = .allocate(capacity: 2 * Scene.attributeCount)
+    for i in 0..<Scene.attributeCount {
         Scene.colorAttributes[i] = Scene.attributes[i].colorAttribute
     }
 
     reader.read(count, maxLength: 16)
     Scene.attributeIndicesCount = count.pointee
-    alignedCount = Scene.attributeIndicesCount + Scene.attributeIndicesCount % 2
     Scene.attributeIndices = .allocate(capacity: 2 * alignedCount)
     reader.read(Scene.attributeIndices, maxLength: alignedCount * MemoryLayout<Int>.stride)
 
@@ -254,13 +253,13 @@ func updateAndRender(_ pixelData: inout PixelData, _ input: inout Input) {
         Scene.cameraVertices[i] = cv
         Scene.rasterVertices[i] = simd_float3(cv.x, -cv.y, 0) * Config.factor / -cv.z + simd_float3(screenSize / 2, -cv.z)
     }
-    for (i, attribute) in UnsafeBufferPointer(start: Scene.attributes, count: Scene.attributesCount).enumerated() {
+    for (i, attribute) in UnsafeBufferPointer(start: Scene.attributes, count: Scene.attributeCount).enumerated() {
         Scene.normals[i] = simd_mul(State.cameraMatrix, attribute.normal)
     }
     var index = 0
-    var viCount = Scene.vertexIndicesCount
+    var viCount = Scene.vertexIndexCount
     var vCount = Scene.vertexCount
-    var aCount = Scene.attributesCount
+    var aCount = Scene.attributeCount
     while index < viCount {
         defer { index += 3 }
         let vi = [Scene.vertexIndices[index], Scene.vertexIndices[index + 1], Scene.vertexIndices[index + 2]]

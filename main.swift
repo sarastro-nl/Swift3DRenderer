@@ -9,7 +9,10 @@ typealias PlatformApplicationDelegate = UIApplicationDelegate
 #endif
 import simd
 
-#if !CPP
+#if CPP
+typealias PixelData = pixel_data_t
+typealias Input = input_t
+#else
 struct PixelData {
     var buffer: UnsafeMutablePointer<UInt32>
     var width: UInt32
@@ -25,9 +28,6 @@ struct Input {
     var right: Float
     var mouse: simd_float2
 }
-#else
-typealias PixelData = pixel_data_t
-typealias Input = input_t
 #endif
 
 class ViewController: PlatformController {
