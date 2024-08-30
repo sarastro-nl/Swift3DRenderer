@@ -269,6 +269,7 @@ func addTetrahedron() {
         i,   i+1, i+3,
         i+1, i+2, i+3,
     ])
+    let ppm = 1
     let j = attributes.count
     attributes.append(contentsOf: [
         VertexAttribute(normal(v, 0, 2, 1), .color(orange)),
@@ -280,9 +281,9 @@ func addTetrahedron() {
         VertexAttribute(normal(v, 0, 1, 3), .color(orange)),
         VertexAttribute(normal(v, 0, 1, 3), .color(orange)),
         VertexAttribute(normal(v, 0, 1, 3), .color(blue)),
-        VertexAttribute(normal(v, 1, 2, 3), .color(orange)),
-        VertexAttribute(normal(v, 1, 2, 3), .color(orange)),
-        VertexAttribute(normal(v, 1, 2, 3), .color(orange)),
+        VertexAttribute(normal(v, 1, 2, 3), .texture(Texture(ppm, simd_float2(0, 0)))),
+        VertexAttribute(normal(v, 1, 2, 3), .texture(Texture(ppm, simd_float2(0.5, 1)))),
+        VertexAttribute(normal(v, 1, 2, 3), .texture(Texture(ppm, simd_float2(1, 0)))),
     ])
     attributeIndices.append(contentsOf: j..<(j + 12))
 }
@@ -336,6 +337,7 @@ func addIcosahedron() {
         i+7,  i+2,  i+3,
         i+3,  i+2,  i+5,
     ])
+    let ppm = 0
     let j = attributes.count
     attributes.append(contentsOf: [
         VertexAttribute(normal(v, 0, 1, 4), .color(orange)),
@@ -395,9 +397,9 @@ func addIcosahedron() {
         VertexAttribute(normal(v, 7, 2, 3), .color(orange)),
         VertexAttribute(normal(v, 7, 2, 3), .color(orange)),
         VertexAttribute(normal(v, 7, 2, 3), .color(orange)),
-        VertexAttribute(normal(v, 3, 2, 5), .color(orange)),
-        VertexAttribute(normal(v, 3, 2, 5), .color(orange)),
-        VertexAttribute(normal(v, 3, 2, 5), .color(orange)),
+        VertexAttribute(normal(v, 3, 2, 5), .texture(Texture(ppm, simd_float2(0, 0)))),
+        VertexAttribute(normal(v, 3, 2, 5), .texture(Texture(ppm, simd_float2(0.5, 1)))),
+        VertexAttribute(normal(v, 3, 2, 5), .texture(Texture(ppm, simd_float2(1, 0)))),
     ])
     attributeIndices.append(contentsOf: j..<(j + 60))
 }
@@ -418,22 +420,19 @@ FileManager.default.createFile(atPath: dataPath, contents: nil)
 guard let writer = FileHandle(forWritingAtPath: dataPath) else { fatalError() }
 defer { writer.closeFile() }
 
-writer.write([vertices.count, 0].withUnsafeBytes { Data($0) })
+let contents = try FileManager.default.contentsOfDirectory(atPath: directory + "/ppms").sorted()
+let files = contents.map { directory + "/ppms/" + $0 }
+
+writer.write([vertices.count, attributes.count, vertexIndices.count, files.count].withUnsafeBytes { Data($0) })
 writer.write(vertices.withUnsafeBytes { Data($0) })
-writer.write([vertexIndices.count, 0].withUnsafeBytes { Data($0) })
-writer.write(vertexIndices.withUnsafeBytes { Data($0) })
-writer.write(Array(repeating: 0, count: MemoryLayout<Int>.stride * vertexIndices.count % 16 / MemoryLayout<Int>.stride).withUnsafeBytes { Data($0) })
-writer.write([attributes.count, 0].withUnsafeBytes { Data($0) })
-writer.write(attributes.reduce(into: Data()) { r, va in
+writer.write(attributes.map { $0.normal }.withUnsafeBytes { Data($0) })
+writer.write(attributes.map { $0.colorAttribute }.reduce(into: Data()) { r, va in
     var va = va
     r += withUnsafeBytes(of: &va) { Data($0) } + Data(Array(repeating: 0, count: 15))
 })
-writer.write([attributeIndices.count, 0].withUnsafeBytes { Data($0) })
+writer.write(vertexIndices.withUnsafeBytes { Data($0) })
 writer.write(attributeIndices.withUnsafeBytes { Data($0) })
-writer.write(Array(repeating: 0, count: MemoryLayout<Int>.stride * attributeIndices.count % 16 / MemoryLayout<Int>.stride).withUnsafeBytes { Data($0) })
-let contents = try FileManager.default.contentsOfDirectory(atPath: directory + "/ppms").sorted()
-let files = contents.map { directory + "/ppms/" + $0 }
-writer.write([files.count << 18, 0].withUnsafeBytes { Data($0) })
+
 let ppmHeaderSize = 15
 var dataOut: [UInt32] = []
 for file in files {

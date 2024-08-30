@@ -99,19 +99,17 @@ static struct {
 };
 
 static struct {
-    simd_float3 *vertices;
     uint64_t vertex_count;
+    uint64_t attribute_count;
+    uint64_t index_count;
+    simd_float3 *vertices;
+    simd_float3 *normals;
+    color_attribute_t *color_attributes;
     uint64_t *vertex_indices;
-    uint64_t vertex_indices_count;
-    vertex_attribute_t *attributes;
-    uint64_t attributes_count;
     uint64_t *attribute_indices;
-    uint64_t attribute_indices_count;
-    
     simd_float3 *camera_vertices;
     simd_float3 *raster_vertices;
-    color_attribute_t *color_attributes;
-    simd_float3 *normals;
+    simd_float3 *mapped_normals;
 } scene;
 
 __attribute__((always_inline))
@@ -179,42 +177,65 @@ void initialize() {
             }
         }
     }
-    uint64_t *count = (uint64_t *)malloc(2 * sizeof(uint64_t));
-    fread(count, sizeof(uint64_t), 2, fp);
-    scene.vertex_count = *count;
-    scene.vertices = (simd_float3 *)malloc(*count * sizeof(simd_float3));
-    fread(scene.vertices, sizeof(simd_float3), *count, fp);
-    scene.camera_vertices = (simd_float3 *)malloc(2 * *count * sizeof(simd_float3));
-    scene.raster_vertices = (simd_float3 *)malloc(2 * *count * sizeof(simd_float3));
-    
-    fread(count, sizeof(uint64_t), 2, fp);
-    scene.vertex_indices_count = *count;
-    uint64_t aligned_count = *count + (*count % 2);
-    scene.vertex_indices = (uint64_t *)malloc(2 * aligned_count * sizeof(uint64_t));
-    fread(scene.vertex_indices, sizeof(uint64_t), aligned_count, fp);
-    
-    fread(count, sizeof(uint64_t), 2, fp);
-    scene.attributes_count = *count;
-    scene.attributes = (vertex_attribute_t *)malloc(*count * sizeof(vertex_attribute_t));
-    fread(scene.attributes, sizeof(vertex_attribute_t), *count, fp);
-    scene.color_attributes = (color_attribute_t *)malloc(2 * *count * sizeof(color_attribute_t));
-    scene.normals = (simd_float3 *)malloc(2 * *count * sizeof(simd_float3));
-    for (int i = 0; i < scene.attributes_count; i++) {
-        scene.color_attributes[i] = scene.attributes[i].ca;
-    }
-    
-    fread(count, sizeof(uint64_t), 2, fp);
-    scene.attribute_indices_count = *count;
-    aligned_count = *count + (*count % 2);
-    scene.attribute_indices = (uint64_t *)malloc(2 * aligned_count * sizeof(uint64_t));
-    fread(scene.attribute_indices, sizeof(uint64_t), aligned_count, fp);
 
-    fread(count, sizeof(uint64_t), 2, fp);
-    texture_buffer.buffer = (uint32_t *)malloc(*count * sizeof(uint32_t));
-    fread(texture_buffer.buffer, sizeof(uint32_t), *count, fp);
+    uint64_t *sizes = (uint64_t *)malloc(4 * sizeof(uint64_t));
+    fread(sizes, sizeof(uint64_t), 4, fp);
+    scene.vertex_count = sizes[0];
+    scene.attribute_count = sizes[1];
+    scene.index_count = sizes[2];
+    uint64_t pixel_count = sizes[3] << 18; // #files x 512 x 512
+    free(sizes);
+
+    uint64_t vertex_bytes = scene.vertex_count * sizeof(simd_float3);
+    uint64_t normal_bytes = scene.attribute_count * sizeof(simd_float3);
+    uint64_t texture_bytes = pixel_count * sizeof(uint32_t);
+    
+    uint64_t max_vertex_count = scene.vertex_count + 2 * scene.index_count / 3; // max 2 extra vertices per 1 triangle (=3 indices)
+    uint64_t max_attribute_count = scene.attribute_count + 2 * scene.index_count / 3; // max 2 extra attributes per 1 triangle (=3 indices)
+    uint64_t max_index_count = 2 * scene.index_count; // max 3 extra indices per 1 triangle (=3 indices)
+    
+    uint64_t max_vertex_bytes = max_vertex_count * sizeof(simd_float3);
+    uint64_t max_normal_bytes = max_attribute_count * sizeof(simd_float3);
+    uint64_t max_color_attribute_bytes = max_attribute_count * sizeof(color_attribute_t);
+    uint64_t max_index_bytes = max_index_count * sizeof(uint64_t);
+    
+    uint64_t byte_count = vertex_bytes + normal_bytes + max_color_attribute_bytes + 2 * max_index_bytes + 2 * max_vertex_bytes + max_normal_bytes + texture_bytes;
+    char* buffer = (char *)malloc(byte_count);
+
+    fread(buffer, sizeof(simd_float3), scene.vertex_count, fp);
+    scene.vertices = (simd_float3 *)buffer;
+    buffer += vertex_bytes;
+    
+    fread(buffer, sizeof(simd_float3), scene.attribute_count, fp);
+    scene.normals = (simd_float3 *)buffer;
+    buffer += normal_bytes;
+    
+    fread(buffer, sizeof(color_attribute_t), scene.attribute_count, fp);
+    scene.color_attributes = (color_attribute_t *)buffer;
+    buffer += max_color_attribute_bytes;
+    
+    fread(buffer, sizeof(uint64_t), scene.index_count, fp);
+    scene.vertex_indices = (uint64_t *)buffer;
+    buffer += max_index_bytes;
+    
+    fread(buffer, sizeof(uint64_t), scene.index_count, fp);
+    scene.attribute_indices = (uint64_t *)buffer;
+    buffer += max_index_bytes;
+    
+    scene.camera_vertices = (simd_float3 *)buffer;
+    buffer += max_vertex_bytes;
+    
+    scene.raster_vertices = (simd_float3 *)buffer;
+    buffer += max_vertex_bytes;
+    
+    scene.mapped_normals = (simd_float3 *)buffer;
+    buffer += max_normal_bytes;
+    
+    fread(buffer, sizeof(uint32_t), pixel_count, fp);
+    texture_buffer.buffer = (uint32_t *)buffer;
 }
 
-void clip(data_t *data, uint64_t *v_count, uint64_t *a_count, uint64_t *vi_count, const uint64_t *vi, const uint64_t *ai, const simd_float2 *screen_size) {
+void clip(data_t *data, uint64_t *v_count, uint64_t *a_count, uint64_t *i_count, const uint64_t *vi, const uint64_t *ai, const simd_float2 *screen_size) {
     data_t data_new[3];
     uint64_t vi_current = 0, vi_next = 0, vi_preceding = 0;
     bool new_triangle = false;
@@ -244,22 +265,22 @@ void clip(data_t *data, uint64_t *v_count, uint64_t *a_count, uint64_t *vi_count
     if (new_triangle) {
         data[vi_preceding] = data_new[vi_next];
         scene.camera_vertices[*v_count] = data_new[vi_next].cv;
-        scene.raster_vertices[*v_count] = data_new[vi_next].rv;
-        scene.color_attributes[*a_count] = data_new[vi_next].ca;
-        scene.normals[*a_count] = data_new[vi_next].n;
         scene.camera_vertices[*v_count + 1] = data_new[vi_preceding].cv;
+        scene.raster_vertices[*v_count] = data_new[vi_next].rv;
         scene.raster_vertices[*v_count + 1] = data_new[vi_preceding].rv;
+        scene.color_attributes[*a_count] = data_new[vi_next].ca;
         scene.color_attributes[*a_count + 1] = data_new[vi_preceding].ca;
-        scene.normals[*a_count + 1] = data_new[vi_preceding].n;
-        scene.vertex_indices[*vi_count] = vi[vi_current];
-        scene.vertex_indices[*vi_count + 1] = *v_count;
-        scene.vertex_indices[*vi_count + 2] = *v_count + 1;
-        scene.attribute_indices[*vi_count] = ai[vi_current];
-        scene.attribute_indices[*vi_count + 1] = *a_count;
-        scene.attribute_indices[*vi_count + 2] = *a_count + 1;
+        scene.mapped_normals[*a_count] = data_new[vi_next].n;
+        scene.mapped_normals[*a_count + 1] = data_new[vi_preceding].n;
+        scene.vertex_indices[*i_count] = vi[vi_current];
+        scene.vertex_indices[*i_count + 1] = *v_count;
+        scene.vertex_indices[*i_count + 2] = *v_count + 1;
+        scene.attribute_indices[*i_count] = ai[vi_current];
+        scene.attribute_indices[*i_count + 1] = *a_count;
+        scene.attribute_indices[*i_count + 2] = *a_count + 1;
         *v_count += 2;
         *a_count += 2;
-        *vi_count += 3;
+        *i_count += 3;
     } else {
         data[vi_current] = data_new[vi_preceding];
         data[vi_next] = data_new[vi_next];
@@ -292,26 +313,26 @@ void update_and_render(const pixel_data_t *pixel_data, const input_t *input) {
         scene.camera_vertices[i] = v;
         scene.raster_vertices[i] = simd_make_float3(v.x, -v.y, 0) * config.factor / -v.z + simd_make_float3(screen_size / 2, -v.z);
     }
-    for (uint32_t i = 0; i < scene.attributes_count; i++) {
-        scene.normals[i] = simd_mul(state.camera_matrix, scene.attributes[i].normal);
+    for (uint32_t i = 0; i < scene.attribute_count; i++) {
+        scene.mapped_normals[i] = simd_mul(state.camera_matrix, scene.normals[i]);
     }
     
-    uint64_t vertex_indices_count = scene.vertex_indices_count;
+    uint64_t index_count = scene.index_count;
     uint64_t vertex_count = scene.vertex_count;
-    uint64_t attribute_count = scene.attributes_count;
-    for (uint32_t index = 0; index < vertex_indices_count; index += 3) {
+    uint64_t attribute_count = scene.attribute_count;
+    for (uint32_t index = 0; index < index_count; index += 3) {
         const uint64_t vi[3] = {scene.vertex_indices[index], scene.vertex_indices[index + 1], scene.vertex_indices[index + 2]};
         const uint64_t ai[3] = {scene.attribute_indices[index], scene.attribute_indices[index + 1], scene.attribute_indices[index + 2]};
         data_t data[3] = {
-            {scene.camera_vertices[vi[0]], scene.raster_vertices[vi[0]], scene.color_attributes[ai[0]], scene.normals[ai[0]]},
-            {scene.camera_vertices[vi[1]], scene.raster_vertices[vi[1]], scene.color_attributes[ai[1]], scene.normals[ai[1]]},
-            {scene.camera_vertices[vi[2]], scene.raster_vertices[vi[2]], scene.color_attributes[ai[2]], scene.normals[ai[2]]},
+            {scene.camera_vertices[vi[0]], scene.raster_vertices[vi[0]], scene.color_attributes[ai[0]], scene.mapped_normals[ai[0]]},
+            {scene.camera_vertices[vi[1]], scene.raster_vertices[vi[1]], scene.color_attributes[ai[1]], scene.mapped_normals[ai[1]]},
+            {scene.camera_vertices[vi[2]], scene.raster_vertices[vi[2]], scene.color_attributes[ai[2]], scene.mapped_normals[ai[2]]},
         };
         
         if (fmaxf(fmaxf(data[0].rv.z, data[1].rv.z), data[2].rv.z) <= config.near) { continue; }
         
         if (fminf(fminf(data[0].rv.z, data[1].rv.z), data[2].rv.z) < config.near) {
-            clip(data, &vertex_count, &attribute_count, &vertex_indices_count, vi, ai, &screen_size);
+            clip(data, &vertex_count, &attribute_count, &index_count, vi, ai, &screen_size);
         }
         const simd_float3 rvmax = simd_max(simd_max(data[0].rv, data[1].rv), data[2].rv);
         if (rvmax.x < 0 || rvmax.y < 0) { continue; }

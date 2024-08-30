@@ -10,19 +10,17 @@ private struct State {
 }
 
 private struct Scene {
-    static var vertices: UnsafeMutablePointer<simd_float3> = .allocate(capacity: 0)
     static var vertexCount: Int = 0
-    static var vertexIndices: UnsafeMutablePointer<Int> = .allocate(capacity: 0)
-    static var vertexIndexCount: Int = 0
-    static var attributes: UnsafeMutablePointer<VertexAttribute> = .allocate(capacity: 0)
     static var attributeCount: Int = 0
+    static var indexCount: Int = 0
+    static var vertices: UnsafeMutablePointer<simd_float3> = .allocate(capacity: 0)
+    static var normals: UnsafeMutablePointer<simd_float3> = .allocate(capacity: 0)
+    static var colorAttributes: UnsafeMutablePointer<ColorAttribute> = .allocate(capacity: 0)
+    static var vertexIndices: UnsafeMutablePointer<Int> = .allocate(capacity: 0)
     static var attributeIndices: UnsafeMutablePointer<Int> = .allocate(capacity: 0)
-    static var attributeIndicesCount: Int = 0
-    
     static var cameraVertices: UnsafeMutablePointer<simd_float3> = .allocate(capacity: 0)
     static var rasterVertices: UnsafeMutablePointer<simd_float3> = .allocate(capacity: 0)
-    static var colorAttributes: UnsafeMutablePointer<ColorAttribute> = .allocate(capacity: 0)
-    static var normals: UnsafeMutablePointer<simd_float3> = .allocate(capacity: 0)
+    static var mappedNormals: UnsafeMutablePointer<simd_float3> = .allocate(capacity: 0)
 }
 
 private struct DepthBuffer {
@@ -142,42 +140,67 @@ func initialize() {
     guard let reader = InputStream(fileAtPath: Bundle.main.dataPath) else { fatalError() }
     reader.open()
     defer { reader.close() }
-
-    let count: UnsafeMutablePointer<Int> = .allocate(capacity: 2)
-    reader.read(count, maxLength: 16)
-    Scene.vertexCount = count.pointee
-    Scene.vertices = .allocate(capacity: count.pointee)
-    reader.read(Scene.vertices, maxLength: count.pointee * MemoryLayout<simd_float3>.stride)
-    Scene.cameraVertices = .allocate(capacity: 2 * count.pointee)
-    Scene.rasterVertices = .allocate(capacity: 2 * count.pointee)
-
-    reader.read(count, maxLength: 16)
-    Scene.vertexIndexCount = count.pointee
-    let alignedCount = Scene.vertexIndexCount + Scene.vertexIndexCount % 2
-    Scene.vertexIndices = .allocate(capacity: 2 * alignedCount)
-    reader.read(Scene.vertexIndices, maxLength: alignedCount * MemoryLayout<Int>.stride)
     
-    reader.read(count, maxLength: 16)
-    Scene.attributeCount = count.pointee
-    Scene.attributes = .allocate(capacity: Scene.attributeCount)
-    reader.read(Scene.attributes, maxLength: Scene.attributeCount * MemoryLayout<VertexAttribute>.stride)
-    Scene.colorAttributes = .allocate(capacity: 2 * Scene.attributeCount)
-    Scene.normals = .allocate(capacity: 2 * Scene.attributeCount)
-    for i in 0..<Scene.attributeCount {
-        Scene.colorAttributes[i] = Scene.attributes[i].colorAttribute
-    }
+    let sizes: UnsafeMutablePointer<Int> = .allocate(capacity: 4)
+    reader.read(sizes, maxLength: 4 * MemoryLayout<Int>.stride)
+    Scene.vertexCount = sizes[0]
+    Scene.attributeCount = sizes[1]
+    Scene.indexCount = sizes[2]
+    let pixelCount = sizes[3] << 18 // #files x 512 x 512
+    sizes.deallocate()
+    
+    let vertexBytes = Scene.vertexCount * MemoryLayout<simd_float3>.stride
+    let normalBytes = Scene.attributeCount * MemoryLayout<simd_float3>.stride
+    let colorAttributeBytes = Scene.attributeCount * MemoryLayout<ColorAttribute>.stride
+    let indexBytes = Scene.indexCount * MemoryLayout<Int>.stride
+    let textureBytes = pixelCount * MemoryLayout<UInt32>.stride
+    
+    let maxVertexCount = Scene.vertexCount + 2 * Scene.indexCount / 3 // max 2 extra vertices per 1 triangle (=3 indices)
+    let maxAttributeCount = Scene.attributeCount + 2 * Scene.indexCount / 3 // max 2 extra attributes per 1 triangle (=3 indices)
+    let maxIndexCount = 2 * Scene.indexCount // max 3 extra indices per 1 triangle (=3 indices)
+    
+    let maxVertexBytes = maxVertexCount * MemoryLayout<simd_float3>.stride
+    let maxNormalBytes = maxAttributeCount * MemoryLayout<simd_float3>.stride
+    let maxColorAttributeBytes = maxAttributeCount * MemoryLayout<ColorAttribute>.stride
+    let maxIndexBytes = maxIndexCount * MemoryLayout<Int>.stride
 
-    reader.read(count, maxLength: 16)
-    Scene.attributeIndicesCount = count.pointee
-    Scene.attributeIndices = .allocate(capacity: 2 * alignedCount)
-    reader.read(Scene.attributeIndices, maxLength: alignedCount * MemoryLayout<Int>.stride)
-
-    reader.read(count, maxLength: 16)
-    Textures.buffer = .allocate(capacity: count.pointee)
-    reader.read(Textures.buffer, maxLength: count.pointee * MemoryLayout<UInt32>.stride)
+    let byteCount = vertexBytes + normalBytes + maxColorAttributeBytes + 2 * maxIndexBytes + 2 * maxVertexBytes + maxNormalBytes + textureBytes
+    var buffer: UnsafeMutableRawPointer = .allocate(byteCount: byteCount, alignment: 16)
+    
+    reader.read(buffer, maxLength: vertexBytes)
+    Scene.vertices = buffer.bindMemory(to: simd_float3.self, capacity: Scene.vertexCount)
+    buffer += vertexBytes
+    
+    reader.read(buffer, maxLength: normalBytes)
+    Scene.normals = buffer.bindMemory(to: simd_float3.self, capacity: Scene.attributeCount)
+    buffer += normalBytes
+    
+    reader.read(buffer, maxLength: colorAttributeBytes)
+    Scene.colorAttributes = buffer.bindMemory(to: ColorAttribute.self, capacity: maxAttributeCount)
+    buffer += maxColorAttributeBytes
+    
+    reader.read(buffer, maxLength: indexBytes)
+    Scene.vertexIndices = buffer.bindMemory(to: Int.self, capacity: maxIndexCount)
+    buffer += maxIndexBytes
+    
+    reader.read(buffer, maxLength: indexBytes)
+    Scene.attributeIndices = buffer.bindMemory(to: Int.self, capacity: maxIndexCount)
+    buffer += maxIndexBytes
+    
+    Scene.cameraVertices = buffer.bindMemory(to: simd_float3.self, capacity: maxVertexCount)
+    buffer += maxVertexBytes
+    
+    Scene.rasterVertices = buffer.bindMemory(to: simd_float3.self, capacity: maxVertexCount)
+    buffer += maxVertexBytes
+    
+    Scene.mappedNormals = buffer.bindMemory(to: simd_float3.self, capacity: maxAttributeCount)
+    buffer += maxNormalBytes
+    
+    reader.read(buffer, maxLength: textureBytes)
+    Textures.buffer = buffer.bindMemory(to: UInt32.self, capacity: pixelCount)
 }
 
-private func clip(_ data: inout [Data], _ viCount: inout Int, _ vCount: inout Int, _ aCount: inout Int, _ vi: [Int], _ ai: [Int], _ screenSize: simd_float2) {
+private func clip(_ data: inout [Data], _ iCount: inout Int, _ vCount: inout Int, _ aCount: inout Int, _ vi: [Int], _ ai: [Int], _ screenSize: simd_float2) {
     var dataNew = Array(repeating: Data.zero, count: 3)
     var (viCurrent, viNext, viPreceding) = (0, 0, 0)
     var newTriangle = false
@@ -212,17 +235,17 @@ private func clip(_ data: inout [Data], _ viCount: inout Int, _ vCount: inout In
         Scene.rasterVertices[vCount + 1] = dataPreceding.rv
         Scene.colorAttributes[aCount] = dataNext.ca
         Scene.colorAttributes[aCount + 1] = dataPreceding.ca
-        Scene.normals[aCount] = dataNext.n
-        Scene.normals[aCount + 1] = dataPreceding.n
-        Scene.vertexIndices[viCount] = vi[viCurrent]
-        Scene.vertexIndices[viCount + 1] = vCount
-        Scene.vertexIndices[viCount + 2] = vCount + 1
-        Scene.attributeIndices[viCount] = ai[viCurrent]
-        Scene.attributeIndices[viCount + 1] = aCount
-        Scene.attributeIndices[viCount + 2] = aCount + 1
+        Scene.mappedNormals[aCount] = dataNext.n
+        Scene.mappedNormals[aCount + 1] = dataPreceding.n
+        Scene.vertexIndices[iCount] = vi[viCurrent]
+        Scene.vertexIndices[iCount + 1] = vCount
+        Scene.vertexIndices[iCount + 2] = vCount + 1
+        Scene.attributeIndices[iCount] = ai[viCurrent]
+        Scene.attributeIndices[iCount + 1] = aCount
+        Scene.attributeIndices[iCount + 2] = aCount + 1
         vCount += 2
         aCount += 2
-        viCount += 3
+        iCount += 3
     } else {
         data[viCurrent] = dataNew[viPreceding]
         data[viNext] = dataNew[viNext]
@@ -253,26 +276,26 @@ func updateAndRender(_ pixelData: inout PixelData, _ input: inout Input) {
         Scene.cameraVertices[i] = cv
         Scene.rasterVertices[i] = simd_float3(cv.x, -cv.y, 0) * Config.factor / -cv.z + simd_float3(screenSize / 2, -cv.z)
     }
-    for (i, attribute) in UnsafeBufferPointer(start: Scene.attributes, count: Scene.attributeCount).enumerated() {
-        Scene.normals[i] = simd_mul(State.cameraMatrix, attribute.normal)
+    for (i, normal) in UnsafeBufferPointer(start: Scene.normals, count: Scene.attributeCount).enumerated() {
+        Scene.mappedNormals[i] = simd_mul(State.cameraMatrix, normal)
     }
     var index = 0
-    var viCount = Scene.vertexIndexCount
+    var iCount = Scene.indexCount
     var vCount = Scene.vertexCount
     var aCount = Scene.attributeCount
-    while index < viCount {
+    while index < iCount {
         defer { index += 3 }
         let vi = [Scene.vertexIndices[index], Scene.vertexIndices[index + 1], Scene.vertexIndices[index + 2]]
         let ai = [Scene.attributeIndices[index], Scene.attributeIndices[index + 1], Scene.attributeIndices[index + 2]]
         var data = [
-            Data(cv: Scene.cameraVertices[vi[0]], rv: Scene.rasterVertices[vi[0]], ca: Scene.colorAttributes[ai[0]], n: Scene.normals[ai[0]]),
-            Data(cv: Scene.cameraVertices[vi[1]], rv: Scene.rasterVertices[vi[1]], ca: Scene.colorAttributes[ai[1]], n: Scene.normals[ai[1]]),
-            Data(cv: Scene.cameraVertices[vi[2]], rv: Scene.rasterVertices[vi[2]], ca: Scene.colorAttributes[ai[2]], n: Scene.normals[ai[2]]),
+            Data(cv: Scene.cameraVertices[vi[0]], rv: Scene.rasterVertices[vi[0]], ca: Scene.colorAttributes[ai[0]], n: Scene.mappedNormals[ai[0]]),
+            Data(cv: Scene.cameraVertices[vi[1]], rv: Scene.rasterVertices[vi[1]], ca: Scene.colorAttributes[ai[1]], n: Scene.mappedNormals[ai[1]]),
+            Data(cv: Scene.cameraVertices[vi[2]], rv: Scene.rasterVertices[vi[2]], ca: Scene.colorAttributes[ai[2]], n: Scene.mappedNormals[ai[2]]),
         ]
         if max(max(data[0].rv.z, data[1].rv.z), data[2].rv.z) <= Config.near { continue }
 
         if min(min(data[0].rv.z, data[1].rv.z), data[2].rv.z) < Config.near {
-            clip(&data, &viCount, &vCount, &aCount, vi, ai, screenSize)
+            clip(&data, &iCount, &vCount, &aCount, vi, ai, screenSize)
         }
         let rvmax = simd_max(simd_max(data[0].rv, data[1].rv), data[2].rv)
         if rvmax.x < 0 || rvmax.y < 0 { continue }
